@@ -1,0 +1,37 @@
+{
+  "etapas": [
+    {
+      "nombre": "Colocar base",
+      "brazos": [
+        { "brazo": "Alpha",  "archivo": "Poses_BaseNueva.json" },
+        { "brazo": "Beta",  "archivo": "" },
+        { "brazo": "Omega", "archivo": "" }
+      ]
+    },
+    {
+      "nombre": "Colocar PCB",
+      "brazos": [
+        { "brazo": "Alpha",  "archivo": "" },
+        { "brazo": "Beta",  "archivo": "" },
+        { "brazo": "Omega", "archivo": "Poses_PCB.json" }
+      ]
+    },
+    {
+      "nombre": "Motor 1 y Motor 3 simultaneos",
+      "brazos": [
+        { "brazo": "Alpha",  "archivo": "" },
+        { "brazo": "Beta",  "archivo": "Poses_Motor1.json" },
+        { "brazo": "Omega", "archivo": "" }
+      ]
+    },
+    {
+      "nombre": "Motor 2 y Motor 4 simultaneos",
+      "brazos": [
+        { "brazo": "Alpha",  "archivo": "" },
+        { "brazo": "Beta",  "archivo": "Poses_Motor2.json" },
+        { "brazo": "Omega", "archivo": "" }
+      ]
+    }
+    
+  ]
+}

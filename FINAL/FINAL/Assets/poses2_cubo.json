@@ -1,0 +1,12 @@
+{
+    "poses": [
+        {
+            "waist": 180.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false
+        }
+    ]
+}
