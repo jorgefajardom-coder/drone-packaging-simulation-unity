@@ -54,6 +54,10 @@ ExportedObj/
 # Model files
 *.fbx
 *.FBX
+*.obj
+*.stl
+*.dae
+*.3ds
 
 # Unity generated crash/system files
 sysinfo.txt
