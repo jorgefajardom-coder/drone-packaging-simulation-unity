@@ -1,0 +1,323 @@
+{
+    "poses": [
+        {
+            "waist": 180.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": -15.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 180.0,
+            "arm01": 35.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": -15.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 180.0,
+            "arm01": 35.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": -15.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 0.0,
+            "arm01": 50.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -12.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": -15.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 0.0,
+            "arm01": 50.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -12.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": -15.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 160.5,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 160.5,
+            "arm01": 53.0,
+            "arm02": 17.600000381469728,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 160.5,
+            "arm01": 53.0,
+            "arm02": 17.600000381469728,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 10.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 10.0,
+            "arm01": 55.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -17.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 10.0,
+            "arm01": 55.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -17.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 201.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 201.0,
+            "arm01": 53.5,
+            "arm02": 19.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 201.0,
+            "arm01": 53.5,
+            "arm02": 19.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 50.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": -10.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.0
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 50.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": -10.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 8.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 148.5,
+            "arm01": 50.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 148.5,
+            "arm01": 60.0,
+            "arm02": 28.0,
+            "arm03": 0.0,
+            "gripperAssembly": 2.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 148.5,
+            "arm01": 60.0,
+            "arm02": 28.0,
+            "arm03": 0.0,
+            "gripperAssembly": 2.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 10.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 10.0,
+            "arm01": 55.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -17.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 10.0,
+            "arm01": 55.0,
+            "arm02": 50.0,
+            "arm03": 0.0,
+            "gripperAssembly": -17.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": 213.5,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 213.5,
+            "arm01": 60.0,
+            "arm02": 28.0,
+            "arm03": 0.0,
+            "gripperAssembly": 2.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": 213.5,
+            "arm01": 60.0,
+            "arm02": 28.0,
+            "arm03": 0.0,
+            "gripperAssembly": 2.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.20000000298023225
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 50.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": -10.0,
+            "gripperClosed": true,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.0
+        },
+        {
+            "waist": -8.800000190734864,
+            "arm01": 50.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": -10.0,
+            "gripperClosed": false,
+            "gripperOpenAngle": -20.0,
+            "gripperClosedAngle": 9.0,
+            "delay": 0.20000000298023225
+        }
+    ]
+}
