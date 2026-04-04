@@ -141,7 +141,7 @@ Collision layers are configured to prevent undesired self-collisions between arm
 
 ## Authors
 
-Jorge Andres Fajardo Mora
+Jorge Andres Fajardo Mora //
 Laura Vanesa Castro Sierra
 
 ---
@@ -300,7 +300,7 @@ Se configuraron capas de colision para evitar auto-colisiones no deseadas entre 
 
 ## Autores
 
-Jorge Andres Fajardo Mora
+Jorge Andres Fajardo Mora //
 Laura Vanesa Castro Sierra
 
 ---
