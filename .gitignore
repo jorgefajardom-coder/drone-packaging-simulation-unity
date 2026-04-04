@@ -11,85 +11,6 @@
 /[Ll]ogs/
 /[Uu]ser[Ss]ettings/
 *.log
-# Unity project
-Library/
-Logs/
-UserSettings/
-Temp/
-Obj/
-Build/
-Builds/
-MemoryCaptures/
-Recordings/
-ServerData/
-
-# Visual Studio / Rider / IDE
-.vs/
-.gradle/
-.consulo/
-ExportedObj/
-*.csproj
-*.unityproj
-*.sln
-*.suo
-*.tmp
-*.user
-*.userprefs
-*.pidb
-*.booproj
-*.svd
-*.pdb
-*.mdb
-*.opendb
-*.VC.db
-*.DotSettings.user
-
-# Logs
-*.log
-
-# Blender temp/import files
-*.blend1
-*.blend1.meta
-
-# Model files
-*.fbx
-*.FBX
-*.obj
-*.stl
-*.dae
-*.3ds
-
-# Unity generated crash/system files
-sysinfo.txt
-mono_crash.*
-crashlytics-build.properties
-
-# Packages/build outputs
-*.apk
-*.aab
-*.unitypackage
-*.unitypackage.meta
-*.app
-
-# Unity generated meta/debug files
-*.pidb.meta
-*.pdb.meta
-*.mdb.meta
-
-# Addressables
-Assets/StreamingAssets/aa*
-Assets/AddressableAssetsData/link.xml*
-Assets/Addressables_Temp*
-Assets/AddressableAssetsData/*/*.bin*
-
-# Visual Scripting
-Assets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db
-Assets/Unity.VisualScripting.Generated/VisualScripting.Flow/UnitOptions.db.meta
-Assets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers
-Assets/Unity.VisualScripting.Generated/VisualScripting.Core/Property Providers.meta
-
-# Test scenes
-Assets/InitTestScene*.unity*
 
 # By default unity supports Blender asset imports, *.blend1 blender files do not need to be commited to version control.
 *.blend1
@@ -176,3 +97,29 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# 3D / source model files not included in this repository
+*.fbx
+*.FBX
+*.fbx.meta
+*.FBX.meta
+*.obj
+*.OBJ
+*.obj.meta
+*.OBJ.meta
+*.stl
+*.STL
+*.stl.meta
+*.STL.meta
+*.dae
+*.DAE
+*.dae.meta
+*.DAE.meta
+*.3ds
+*.3DS
+*.3ds.meta
+*.3DS.meta
+*.blend
+*.BLEND
+*.blend.meta
+*.BLEND.meta
