@@ -28,6 +28,7 @@ public class Brazos : MonoBehaviour
     public float gripperOpenAngle = -20f;
     public float gripperClosedAngle = 8f;
     public bool gripperClosed = false;
+    public float delay = 0f;
 
     [Header("Velocidad de movimiento (°/s)")]
     public float speed = 60f;
@@ -55,6 +56,9 @@ public class Brazos : MonoBehaviour
     public bool jugandoSecuencia = false;
     private bool esperandoInicio = false;
     private float tiempoEsperaInicialTimer = 0f;
+
+    private bool esperandoPose = false;
+    private float timerPose = 0f;
 
     [Header("Opciones de reproducción / persistencia")]
     public bool autoStartOnPlay = false;
@@ -266,6 +270,7 @@ public class Brazos : MonoBehaviour
             gripperClosed = gripperClosed,
             gripperOpenAngle = this.gripperOpenAngle,   // ← NUEVO
             gripperClosedAngle = this.gripperClosedAngle,
+            delay = 0f,
         };
 
         poses.Add(p);
@@ -286,6 +291,7 @@ public class Brazos : MonoBehaviour
             gripperClosed = false,
             gripperOpenAngle = this.gripperOpenAngle,   // ← NUEVO
             gripperClosedAngle = this.gripperClosedAngle,
+            delay = 0f,
         };
 
         poses.Add(p);
@@ -358,6 +364,17 @@ public class Brazos : MonoBehaviour
             return;
         }
 
+        if (esperandoPose)
+        {
+            timerPose += Time.deltaTime;
+            if (timerPose >= poses[currentPoseIndex - 1].delay)
+            {
+                esperandoPose = false;
+                Debug.Log($"▶ Delay cumplido, avanzando a pose #{currentPoseIndex}");
+            }
+            return; // No mover nada mientras esperamos
+        }
+
         RobotPose p = poses[currentPoseIndex];
 
         // Mover articulaciones
@@ -372,18 +389,6 @@ public class Brazos : MonoBehaviour
         if (Gear1) SmoothX(Gear1, gripTarget);
         if (Gear2) SmoothX(Gear2, -gripTarget);
 
-        // PROCESAR AGARRE DURANTE SECUENCIA
-        ProcesarAgarreSecuencia(p);
-
-        // Avanzar a la siguiente pose cuando llegamos a la actual
-        if (Llegamos(p))
-        {
-            currentPoseIndex++;
-        }
-    }
-
-    void ProcesarAgarreSecuencia(RobotPose p)
-    {
         // ======== CERRAR → AGARRAR ========
         if (p.gripperClosed && grabbedObject == null && objectInside != null)
         {
@@ -396,11 +401,24 @@ public class Brazos : MonoBehaviour
             LiberarObjeto();
         }
 
-        // Mantener pegado si está agarrado
+        // Mantener pegado si está agarrado (esto sí va cada frame)  ← sin cambio
         if (grabbedObject != null && p.gripperClosed)
         {
             grabbedObject.transform.localPosition = grabLocalOffset;
             grabbedObject.transform.localRotation = grabLocalRotOffset;
+        }
+
+        // ✅ Cuando alcanzamos la pose, avanzamos al siguiente paso
+        if (Llegamos(p))
+        {
+            currentPoseIndex++;
+
+            if (p.delay > 0f)
+            {
+                esperandoPose = true;
+                timerPose = 0f;
+                Debug.Log($"⏸ Pose alcanzada. Esperando {p.delay}s antes de continuar...");
+            }
         }
     }
 
@@ -526,6 +544,7 @@ Debug.Log("GUARDADO EN UNITY: " + path);
                         gripperClosed = pose.gripperClosed,
                         gripperOpenAngle = pose.gripperOpenAngle,   // ← NUEVO
                         gripperClosedAngle = pose.gripperClosedAngle,
+                        delay = pose.delay,
                     };
                     clones.Add(copia);
                 }
@@ -557,4 +576,5 @@ public class RobotPose
     public bool gripperClosed;
     public float gripperOpenAngle = -20f;   // ← NUEVO
     public float gripperClosedAngle = -8f;
+    public float delay = 0f;
 }

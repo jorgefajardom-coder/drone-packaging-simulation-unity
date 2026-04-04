@@ -1,10 +1,20 @@
 ﻿using UnityEngine;
+
 public class Ensamble : MonoBehaviour
 {
     [Header("Configuración de ensamble")]
-    public Transform puntoEnsamble;          // Se asigna desde el Spawner automáticamente
-    public float offsetHundimiento = -0.05f; // Cuánto se hunde (negativo = baja)
-    public float velocidadEncaje = 3f;       // Qué tan rápido baja al encajar
+    public Transform puntoEnsamble;
+    public float offsetHundimiento = -0.05f;
+    public float velocidadEncaje = 3f;
+
+    [Header("Modo de activación del encaje")]
+    [Tooltip("Activar para piezas que van ENCIMA (Tapa). Desactivar para piezas que caen (PCB).")]
+    public bool snapPorProximidad = false;
+    [Tooltip("Solo si snapPorProximidad=true. Distancia al puntoEnsamble para activar el snap.")]
+    public float distanciaActivacionSnap = 0.15f;
+    [Tooltip("Activar para piezas que van ENCIMA: congela gravedad al soltarse para evitar caída brusca.")]
+    public bool congelarAlLiberar = false;
+
     private Rigidbody rb;
     private Collider col;
     private bool encajando = false;
@@ -12,42 +22,98 @@ public class Ensamble : MonoBehaviour
     private bool fueLiberad = false;
     private Vector3 posicionFinal;
     private Quaternion rotacionAlLiberar;
-    private Transform baseParent; // ← esta línea
+    private Transform baseParent;
+
+    [Header("Rotación al ser agarrado por ventosa")]
+    public Vector3 rotacionAlAgarrar = Vector3.zero;
+
+    [Header("Rotación final de ensamble")]
+    public Vector3 rotacionFinalEnsamble = new Vector3(-90f, 0f, 180f);
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
         col = GetComponent<Collider>();
     }
+
     // Llamado desde Ventosa.cs al soltar la pieza
     public void NotificarLiberad()
     {
         fueLiberad = true;
-        Debug.Log("📦 PCB liberada, lista para encajar.");
+        Debug.Log($"📦 {gameObject.name} liberada, lista para encajar.");
+
+        // ✅ Para piezas que van ENCIMA (Tapa):
+        // tomar control kinematic inmediatamente al soltarse
+        // evita la caída brusca antes de que el snap tome control
+        if (congelarAlLiberar && rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.useGravity = false;
+            rb.isKinematic = true;
+            Debug.Log($"🧊 {gameObject.name} congelada en el aire, iniciando snap directo.");
+
+            posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
+            baseParent = GameObject.Find("BasePrefab")?.transform;
+            encajando = true;
+
+            if (col != null) col.enabled = false;
+        }
     }
+
     void OnCollisionEnter(Collision collision)
     {
-        // Debug temporal para ver con qué choca
         Debug.Log($"💥 Colisión con: '{collision.gameObject.name}' | fueLiberad: {fueLiberad} | encajado: {encajado}");
+
+        // Modos que no usan colisión como disparador
+        if (snapPorProximidad || congelarAlLiberar) return;
+
         if (!encajado && fueLiberad && collision.gameObject.name.Contains("BasePrefab"))
         {
             baseParent = collision.gameObject.transform;
             IniciarEncaje();
         }
     }
+
     void IniciarEncaje()
     {
+        if (encajando || encajado) return;
+
         encajando = true;
-        rb.isKinematic = true;
-        rb.velocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-        if (col != null) col.enabled = false;
-        // ✅ Guarda la rotación exacta en que fue soltada
+
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+
+        if (!snapPorProximidad && col != null)
+            col.enabled = false;
+
         rotacionAlLiberar = transform.rotation;
-        posicionFinal = puntoEnsamble.position + new Vector3(0, offsetHundimiento, 0);
-        Debug.Log($"🔧 Iniciando encaje hacia: {posicionFinal}");
+        posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
+
+        Debug.Log($"🔧 {gameObject.name} iniciando encaje hacia: {posicionFinal}");
     }
+
     void Update()
     {
+        // ── Modo proximidad: vigilar distancia al punto de ensamble ──
+        if (snapPorProximidad && fueLiberad && !encajando && !encajado && puntoEnsamble != null)
+        {
+            float dist = Vector3.Distance(transform.position, puntoEnsamble.position);
+            if (dist <= distanciaActivacionSnap)
+            {
+                GameObject baseObj = GameObject.Find("BasePrefab");
+                if (baseObj != null)
+                    baseParent = baseObj.transform;
+
+                IniciarEncaje();
+            }
+        }
+
+        // ── Movimiento de encaje (igual para todos los modos) ──
         if (encajando && !encajado)
         {
             transform.position = Vector3.Lerp(
@@ -55,16 +121,26 @@ public class Ensamble : MonoBehaviour
                 posicionFinal,
                 Time.deltaTime * velocidadEncaje
             );
-            // ✅ Mantiene la rotación con la que fue soltada, sin voltearla
-            transform.rotation = rotacionAlLiberar;
+
+            transform.rotation = Quaternion.Lerp(
+                transform.rotation,
+                Quaternion.Euler(rotacionFinalEnsamble),
+                Time.deltaTime * velocidadEncaje
+            );
+
             if (Vector3.Distance(transform.position, posicionFinal) < 0.001f)
             {
                 transform.position = posicionFinal;
+                transform.rotation = Quaternion.Euler(rotacionFinalEnsamble);
                 encajado = true;
                 encajando = false;
+
                 if (col != null) col.enabled = true;
-                transform.SetParent(baseParent);
-                Debug.Log("✅ PCB ensamblada correctamente.");
+
+                if (baseParent != null)
+                    transform.SetParent(baseParent);
+
+                Debug.Log($"✅ {gameObject.name} ensamblada correctamente.");
             }
         }
     }

@@ -64,6 +64,9 @@ public class Ventosa : MonoBehaviour
     private bool esperandoInicio = false;
     private float tiempoEsperaInicialTimer = 0f;
 
+    private bool esperandoPose = false;
+    private float timerPose = 0f;
+
     [Header("Opciones de reproducción / persistencia")]
     public bool autoStartOnPlay = false;
     public string saveFileName = "poses_ventosa.json";
@@ -186,8 +189,12 @@ public class Ventosa : MonoBehaviour
         // ✅ Hacer hijo manteniendo posición mundial
         grabbedObject.transform.SetParent(gripPoint, true);
 
-        // ✅ Forzar siempre la rotación exacta del prefab PCB
-        grabbedObject.transform.rotation = Quaternion.Euler(rotacionFijaAlAgarrar);
+        // ✅ Forzar rotación mundo específica según el objeto agarrado
+        Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
+        if (ensambleScript != null && ensambleScript.rotacionAlAgarrar != Vector3.zero)
+        {
+            grabbedObject.transform.rotation = Quaternion.Euler(ensambleScript.rotacionAlAgarrar);
+        }
 
         // ✅ Guardar offset DESPUÉS de aplicar rotación correcta
         grabLocalOffset = grabbedObject.transform.localPosition;
@@ -211,7 +218,19 @@ public class Ventosa : MonoBehaviour
 
         Debug.Log($"🔵 DESACTIVANDO SUCCIÓN: {grabbedObject.name}");
 
-        PosicionarSobreBanda();
+        // ✅ Verificar si es una pieza que debe congelarse (tapa)
+        Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
+        bool esPiezaQueSeCongela = ensambleScript != null && ensambleScript.congelarAlLiberar;
+
+        // ✅ Solo posicionar sobre banda si NO es pieza que se congela
+        if (!esPiezaQueSeCongela)
+        {
+            PosicionarSobreBanda();
+        }
+        else
+        {
+            Debug.Log($"📌 Pieza con congelamiento activado ({grabbedObject.name}), saltando PosicionarSobreBanda()");
+        }
 
         grabbedObject.transform.SetParent(originalParent);
         grabbedObject.transform.localScale = originalScale;
@@ -225,7 +244,7 @@ public class Ventosa : MonoBehaviour
             originalRigidbody.WakeUp();
         }
 
-        // ✅ LÍNEA NUEVA: notifica al script de ensamble que fue liberada
+        // ✅ Notifica al script de ensamble que fue liberada
         grabbedObject.GetComponent<Ensamble>()?.NotificarLiberad();
 
         grabbedObject = null;
@@ -240,6 +259,14 @@ public class Ventosa : MonoBehaviour
     {
         if (grabbedObject == null) return;
 
+        // ✅ Si es pieza que se congela, no reposicionar
+        Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
+        if (ensambleScript != null && ensambleScript.congelarAlLiberar)
+        {
+            Debug.Log($"⏭️ Saltando PosicionarSobreBanda para {grabbedObject.name} (congelarAlLiberar=true)");
+            return;
+        }
+
         RaycastHit hit;
         Vector3 origenRaycast = grabbedObject.transform.position + Vector3.up * 0.5f;
 
@@ -251,9 +278,6 @@ public class Ventosa : MonoBehaviour
                 float alturaObjeto = objCollider.bounds.extents.y;
                 Vector3 posicionSobreBanda = hit.point + Vector3.up * (alturaObjeto + alturaLiberacion);
                 grabbedObject.transform.position = posicionSobreBanda;
-
-                // ✅ Al liberar también forzar la rotación correcta del prefab
-                grabbedObject.transform.rotation = Quaternion.Euler(rotacionFijaAlAgarrar);
 
                 Debug.Log($"📐 Objeto posicionado sobre la banda a altura: {alturaObjeto + alturaLiberacion}");
             }
@@ -389,6 +413,18 @@ public class Ventosa : MonoBehaviour
         // ⛔ Si está en proceso de liberación, no avanzar ni mover
         if (liberandoObjeto) return;
 
+        // ⏸ Espera del delay
+        if (esperandoPose)
+        {
+            timerPose += Time.deltaTime;
+            if (timerPose >= poses[currentPoseIndex - 1].delay)
+            {
+                esperandoPose = false;
+                Debug.Log($"▶ Delay cumplido, avanzando a pose #{currentPoseIndex}");
+            }
+            return;
+        }
+
         VentosaPose p = poses[currentPoseIndex];
 
         SmoothX(Waist, p.waist);
@@ -415,6 +451,12 @@ public class Ventosa : MonoBehaviour
         if (Llegamos(p))
         {
             currentPoseIndex++;
+            if (p.delay > 0f)
+            {
+                esperandoPose = true;
+                timerPose = 0f;
+                Debug.Log($"⏸ Pose alcanzada. Esperando {p.delay}s antes de continuar...");
+            }
         }
     }
 
@@ -425,7 +467,22 @@ public class Ventosa : MonoBehaviour
         liberandoObjeto = true; // 🔒 Congela la secuencia
 
         Debug.Log($"🔵 SECUENCIA: Liberando objeto {grabbedObject.name}");
-        yield return StartCoroutine(BajarABanda());
+
+        // ✅ Verificar si es pieza que se congela
+        Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
+        bool esPiezaQueSeCongela = ensambleScript != null && ensambleScript.congelarAlLiberar;
+
+        if (!esPiezaQueSeCongela)
+        {
+            yield return StartCoroutine(BajarABanda());
+        }
+        else
+        {
+            // Para tapa: solo dar un pequeño delay antes de soltar
+            Debug.Log("📌 Pieza congelable, saltando bajada a banda");
+            yield return new WaitForSeconds(0.1f);
+        }
+
         LiberarObjeto();
 
         liberandoObjeto = false; // 🔓 Reanuda la secuencia
@@ -546,7 +603,8 @@ Debug.Log("GUARDADO EN UNITY: " + path);
                         arm02 = pose.arm02,
                         arm03 = pose.arm03,
                         gripperAssembly = pose.gripperAssembly,
-                        suctionActive = pose.suctionActive
+                        suctionActive = pose.suctionActive,
+                        delay = pose.delay,
                     };
                     clones.Add(copia);
                 }
@@ -599,4 +657,5 @@ public class VentosaPose
     public float arm03;
     public float gripperAssembly;
     public bool suctionActive;
+    public float delay = 0f;
 }
