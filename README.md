@@ -7,8 +7,8 @@
 ![ArticulationBody](https://img.shields.io/badge/Physics-ArticulationBody-orange?style=for-the-badge)
 ![Status](https://img.shields.io/badge/Status-Active-success?style=for-the-badge)
 
-**Industrial Robotic Assembly Cell Simulation**  
-Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics · Festo-Inspired Systems
+**Robotic Assembly Cell Simulation**  
+Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 **English** | [Español](#simulación-de-empaquetado-de-dron--unity)
 
@@ -25,7 +25,6 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics · Festo
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Resolved Issues](#resolved-issues)
-- [Roadmap](#roadmap)
 - [Authors](#authors)
 - [License](#license-and-rights)
 
@@ -33,19 +32,20 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics · Festo
 
 ## Overview
 
-This project is a **Unity-based industrial simulation** of a robotic drone assembly cell. It reproduces an automated production process in which three articulated robotic arms collaborate to assemble a drone through physically realistic interactions, coordinated motion sequences, and differentiated gripping mechanisms.
+This project is a **Unity-based simulation** of a robotic drone assembly cell. It reproduces an automated production process in which three articulated robotic arms collaborate to assemble a drone through physically realistic interactions, coordinated motion sequences, and differentiated gripping mechanisms.
 
-The simulation is intended for **virtual process validation** in industrial and academic contexts, drawing inspiration from systems similar to those found in **Festo-type** automation platforms.
+The simulation is intended for **virtual process validation** in technical and academic contexts.
 
 ### Key Features
 
-- 🦾 **Three coordinated robotic arms** (Alpha, Beta, Omega) with ArticulationBody physics
-- 🔄 **4-stage assembly orchestration** with JSON-driven sequences
+- 🦾 **Four coordinated robotic arms** (Alpha, Beta, Omega, Paletizador) with ArticulationBody physics
+- 🔄 **8-stage assembly orchestration** with JSON-driven sequences
 - ⚙️ **Dual end effectors**: Gripper (`Brazos.cs`) and Suction Cup (`Ventosa.cs`)
 - 🎯 **Proximity-based snap system** for component assembly
 - 📊 **Coroutine-based asynchronous execution** with dependency management
 - 🔧 **World-space preservation** to prevent rotation artifacts
 - 🏭 **Production spawner** with staggered coroutine-based part instantiation
+- 📦 **Palletizer arm** with dual-cart rotation system — continuous packing cycle synchronized with assembly time
 
 ---
 
@@ -55,7 +55,7 @@ The simulation is intended for **virtual process validation** in industrial and 
 
 | Criterion | Justification |
 |-----------|---------------|
-| **LTS (Long-Term Support)** | Stability guaranteed through 2024, ideal for industrial simulation projects |
+| **LTS (Long-Term Support)** | Stability guaranteed through 2024, ideal for simulation projects |
 | **Mature ArticulationBody** | Introduced in 2020.1, fully stable in 2021.3 for precise robotic simulation |
 | **Deterministic Physics** | Configurable solver iterations, essential for robotics |
 | **C# 10.0** | Modern language features: records, pattern matching, global usings |
@@ -102,6 +102,7 @@ graph TB
         B1[Alpha<br/>Brazos — Gripper]
         B2[Beta<br/>Brazos — Gripper]
         B3[Omega<br/>Ventosa — Suction]
+        B4[Paletizador<br/>Ventosa — Suction]
     end
     
     subgraph "Grip Systems Layer"
@@ -118,11 +119,17 @@ graph TB
         HELICE[Hélices x4]
         TAPA[Tapa]
     end
+
+    subgraph "Palletizing System"
+        CARRO1[Cart 1<br/>boxes]
+        CARRO2[Cart 2<br/>boxes]
+    end
     
     O -->|Reads JSON| JSON
     O -->|Coordinates| B1
     O -->|Coordinates| B2
     O -->|Coordinates| B3
+    O -->|Coordinates| B4
     P -->|Spawns parts| BASE
     P -->|Spawns parts| PCB
     P -->|Spawns parts| MOTOR
@@ -132,28 +139,37 @@ graph TB
     B1 -.->|Uses| G
     B2 -.->|Uses| G
     B3 -.->|Uses| V
+    B4 -.->|Uses| V
     
     G -->|Snap Logic| E2
     V -->|Snap Logic| E1
     
     B1 -->|Assembles| BASE
     B3 -->|Assembles| PCB
+    B1 -->|Assembles| MOTOR
     B2 -->|Assembles| MOTOR
+    B1 -->|Assembles| HELICE
     B2 -->|Assembles| HELICE
+    B3 -->|Assembles| TAPA
+    B3 -->|Moves drone to zone| B4
+    B4 -->|Palletizes into| CARRO1
+    B4 -->|Palletizes into| CARRO2
     
     style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
+    style B4 fill:#B75A34,stroke:#5C2506,color:#fff
 ```
 
 ### Arm Configuration
 
 | Arm | Class | End Effector | Role | Components Handled |
 |-----|-------|-------------|------|-------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | Large component handling | Base |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | Mechanical component handling | Motors x4, Hélices x4 |
-| **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | Delicate component handling | PCB, Tapa |
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | Assembly — large & mechanical parts | Base, diagonal Motors x2, diagonal Hélices x2 |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | Assembly — mechanical parts (paired with Alpha) | diagonal Motors x2, diagonal Hélices x2 |
+| **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | Assembly — delicate parts + drone transfer | PCB, Tapa, completed drone → staging zone |
+| **Paletizador** | `Ventosa.cs` | Suction Cup (ventosa) | Palletizing — picks drone, fills carts | Completed drones → Cart 1 / Cart 2 boxes |
 
 ### Assembly Sequence Flow
 
@@ -163,43 +179,93 @@ sequenceDiagram
     participant A as Alpha (Brazos)
     participant B as Beta (Brazos)
     participant W as Omega (Ventosa)
+    participant P as Paletizador (Ventosa)
     participant D as Assembled Drone
-    
-    Note over O: Start - Load ensamblaje_dron.json
-    
-    O->>A: Stage 1 — Poses_BaseNueva.json
+    participant C as Cart 1 / Cart 2
+
+    Note over O: Start — Load ensamblaje_dron.json
+
+    O->>A: Stage 1 — Place Base
     activate A
-    A->>A: Move through 6 poses
-    A->>A: Grip Base (gripperClosed=true)
-    A->>D: Release Base at assembly point
+    A->>D: Grip & release Base at assembly point
     A-->>O: jugandoSecuencia = false
     deactivate A
-    
-    O->>W: Stage 2 — Poses_PCB.json
+
+    O->>W: Stage 2 — Place PCB
     activate W
-    W->>W: Activate suction
-    W->>W: Animate attraction (Lerp)
-    W->>D: Assemble PCB on Base
+    W->>D: Suction grip → assemble PCB on Base
     W-->>O: jugandoSecuencia = false
     deactivate W
-    
-    O->>B: Stage 3 — Poses_Motor1.json (Motor 1 & 3)
+
+    O->>A: Stage 3 — Diagonal Motors (1 & 3)
+    O->>B: Stage 3 — Diagonal Motors (1 & 3)
+    activate A
     activate B
-    loop Motors 1 & 3
-        B->>D: Assemble Motor (EnsambleGri snap)
-    end
+    A->>D: Assemble Motor (diagonal pair)
+    B->>D: Assemble Motor (diagonal pair)
+    A-->>O: jugandoSecuencia = false
     B-->>O: jugandoSecuencia = false
+    deactivate A
     deactivate B
-    
-    O->>B: Stage 4 — Poses_Motor2.json (Motor 2 & 4)
+
+    O->>A: Stage 4 — Diagonal Motors (2 & 4)
+    O->>B: Stage 4 — Diagonal Motors (2 & 4)
+    activate A
     activate B
-    loop Motors 2 & 4
-        B->>D: Assemble Motor (EnsambleGri snap)
-    end
+    A->>D: Assemble Motor (diagonal pair)
+    B->>D: Assemble Motor (diagonal pair)
+    A-->>O: jugandoSecuencia = false
     B-->>O: jugandoSecuencia = false
+    deactivate A
     deactivate B
-    
-    Note over O,D: ✅ Drone fully assembled
+
+    O->>W: Stage 5 — Place Tapa
+    activate W
+    W->>D: Suction grip → assemble Tapa (final closure)
+    W-->>O: jugandoSecuencia = false
+    deactivate W
+
+    O->>A: Stage 6 — Diagonal Hélices (1 & 3)
+    O->>B: Stage 6 — Diagonal Hélices (1 & 3)
+    activate A
+    activate B
+    A->>D: Assemble Hélice (diagonal pair)
+    B->>D: Assemble Hélice (diagonal pair)
+    A-->>O: jugandoSecuencia = false
+    B-->>O: jugandoSecuencia = false
+    deactivate A
+    deactivate B
+
+    O->>A: Stage 7 — Diagonal Hélices (2 & 4)
+    O->>B: Stage 7 — Diagonal Hélices (2 & 4)
+    activate A
+    activate B
+    A->>D: Assemble Hélice (diagonal pair)
+    B->>D: Assemble Hélice (diagonal pair)
+    A-->>O: jugandoSecuencia = false
+    B-->>O: jugandoSecuencia = false
+    deactivate A
+    deactivate B
+
+    O->>W: Stage 8 — Transfer drone to staging zone
+    activate W
+    W->>W: Suction grip completed drone
+    W->>D: Place drone in Paletizador staging zone
+    W-->>O: jugandoSecuencia = false
+    deactivate W
+
+    Note over O,D: Assembly complete (< 1 min cycle) — Paletizador takes over
+
+    loop Until Cart is full
+        P->>D: Pick drone from staging zone
+        P->>C: Move to active cart
+        P->>C: Place drone in box & close box
+    end
+
+    Note over P,C: Cart 1 full → exits zone
+    Note over P,C: Paletizador switches to Cart 2
+    Note over P,C: Cart 1 returns with empty boxes while Cart 2 is being filled
+    Note over P,C: Cycle repeats continuously
 ```
 
 ### Script Interaction Diagram
@@ -210,6 +276,7 @@ classDiagram
         +Brazos alfa
         +Brazos beta
         +Ventosa omega
+        +Ventosa paletizador
         +string archivoMaestro
         +int etapaActual
         +bool ensamblajeFinalizado
@@ -295,6 +362,7 @@ classDiagram
     OrquestadorDron "1" --> "1" Brazos : alfa
     OrquestadorDron "1" --> "1" Brazos : beta
     OrquestadorDron "1" --> "1" Ventosa : omega
+    OrquestadorDron "1" --> "1" Ventosa : paletizador
     Brazos "1" --> "*" EnsambleGri : interacts via GripperTrigger
     Ventosa "1" --> "*" Ensamble : interacts via SuctionTrigger
     Brazos "1" --> "0..1" CentrarBase : uses
@@ -402,43 +470,50 @@ Each arm's movement is defined in external JSON files under `Assets/JSON_Generad
 |------|-----|-------------|
 | `Poses_BaseNueva.json` | Alpha | Place drone base (6 poses) |
 | `Poses_PCB.json` | Omega | Place PCB with suction |
-| `Poses_Motor1.json` | Beta | Motors 1 & 3 simultaneous (6 poses) |
-| `Poses_Motor2.json` | Beta | Motors 2 & 4 simultaneous (6 poses) |
-| `Poses_Motor3.json` | Beta | Motor 3 sequence |
-| `Poses_Motor4.json` | Beta | Motor 4 sequence |
+| `Poses_Motor1.json` | Alpha | Diagonal motor 1 (6 poses) |
+| `Poses_Motor2.json` | Alpha | Diagonal motor 2 (6 poses) |
+| `Poses_Motor3.json` | Beta | Diagonal motor 3 |
+| `Poses_Motor4.json` | Beta | Diagonal motor 4 |
 | `Poses_Tapa.json` | Omega | Place lid (final closure) |
 | `Poses_Alpha.json` | Alpha | Alpha alternate sequence |
 | `Poses_Beta.json` | Beta | Beta alternate sequence |
 | `Poses_Omega.json` | Omega | Omega alternate sequence |
-| `Poses_Palet.json` | — | Pallet movement sequence |
+| `Poses_Palet.json` | Paletizador | Palletizing / cart movement sequence |
 | `poses2_cubo.json` | — | Test/debug sequence |
 
 ---
 
 ### 4. Multi-Arm Orchestrator (`OrquestadorDron.cs`)
 
-`OrquestadorDron.cs` is the central coordination MonoBehaviour. It reads the master assembly sequence (`ensamblaje_dron.json`) from `StreamingAssets`, triggers each arm by name (`Alpha`, `Beta`, `Omega`), and polls `jugandoSecuencia` flags in `Update()` before advancing.
+`OrquestadorDron.cs` is the central coordination MonoBehaviour. It reads the master assembly sequence (`ensamblaje_dron.json`) from `StreamingAssets`, triggers each arm by name (`Alpha`, `Beta`, `Omega`, `Paletizador`), and polls `jugandoSecuencia` flags in `Update()` before advancing.
 
-**Real master JSON** (`ensamblaje_dron.json`):
+**Real master JSON** (`ensamblaje_dron.json`) — 8 assembly stages + palletizing:
 ```json
 {
   "etapas": [
-    { "nombre": "Colocar base",                    "brazos": [{"brazo":"Alpha","archivo":"Poses_BaseNueva.json"}, ...] },
-    { "nombre": "Colocar PCB",                     "brazos": [{"brazo":"Omega","archivo":"Poses_PCB.json"}, ...] },
-    { "nombre": "Motor 1 y Motor 3 simultaneos",   "brazos": [{"brazo":"Beta","archivo":"Poses_Motor1.json"}, ...] },
-    { "nombre": "Motor 2 y Motor 4 simultaneos",   "brazos": [{"brazo":"Beta","archivo":"Poses_Motor2.json"}, ...] }
+    { "nombre": "Colocar base",                           "brazos": [{"brazo":"Alpha","archivo":"Poses_BaseNueva.json"}, ...] },
+    { "nombre": "Colocar PCB",                            "brazos": [{"brazo":"Omega","archivo":"Poses_PCB.json"}, ...] },
+    { "nombre": "Motores diagonales 1 y 3",               "brazos": [{"brazo":"Alpha","archivo":"Poses_Motor1.json"}, {"brazo":"Beta","archivo":"Poses_Motor3.json"}] },
+    { "nombre": "Motores diagonales 2 y 4",               "brazos": [{"brazo":"Alpha","archivo":"Poses_Motor2.json"}, {"brazo":"Beta","archivo":"Poses_Motor4.json"}] },
+    { "nombre": "Colocar tapa",                           "brazos": [{"brazo":"Omega","archivo":"Poses_Tapa.json"}, ...] },
+    { "nombre": "Helices diagonales 1 y 3",               "brazos": [{"brazo":"Alpha","archivo":"Poses_Helice1.json"}, {"brazo":"Beta","archivo":"Poses_Helice3.json"}] },
+    { "nombre": "Helices diagonales 2 y 4",               "brazos": [{"brazo":"Alpha","archivo":"Poses_Helice2.json"}, {"brazo":"Beta","archivo":"Poses_Helice4.json"}] },
+    { "nombre": "Transferir dron a zona paletizador",     "brazos": [{"brazo":"Omega","archivo":"Poses_TransferDron.json"}, ...] }
   ]
 }
 ```
 
+> **Note**: The Paletizador arm runs its own independent loop after Stage 8, operating in parallel with the next assembly cycle. Its sequence is not part of `ensamblaje_dron.json` — it is driven by a dedicated palletizing controller.
+
 **Orchestration pattern** (poll-based, not coroutine):
 ```csharp
 void Update() {
-    bool alfaListo  = !alfaActivo  || !alfa.jugandoSecuencia;
-    bool betaListo  = !betaActivo  || !beta.jugandoSecuencia;
-    bool omegaListo = !omegaActivo || !omega.jugandoSecuencia;
+    bool alfaListo       = !alfaActivo       || !alfa.jugandoSecuencia;
+    bool betaListo       = !betaActivo       || !beta.jugandoSecuencia;
+    bool omegaListo      = !omegaActivo      || !omega.jugandoSecuencia;
+    bool paletizadorListo = !paletizadorActivo || !paletizador.jugandoSecuencia;
 
-    if (alfaListo && betaListo && omegaListo) {
+    if (alfaListo && betaListo && omegaListo && paletizadorListo) {
         etapaActual++;
         if (etapaActual < maestro.etapas.Count)
             EjecutarEtapa(etapaActual);
@@ -538,14 +613,41 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 
 ---
 
-## Project Structure
+### 8. Palletizer System (`Paletizador` — `Ventosa.cs`)
+
+The Paletizador is a fourth suction-cup arm that operates independently from the assembly sequence. Once Omega transfers the completed drone to the staging zone (Stage 8), the Paletizador picks it up and places it into a box on the active cart. This cycle is designed to complete within the same time budget as one full assembly cycle (< 1 minute), enabling seamless parallelism.
+
+**Dual-cart rotation logic**:
+```
+Cart 1 active → Paletizador fills boxes
+Cart 1 full   → Cart 1 exits zone
+              → Paletizador switches to Cart 2
+Cart 1 returns with empty boxes
+              → Paletizador finishes Cart 2 → switches back to Cart 1
+              → Cycle repeats indefinitely
+```
+
+**Timing constraint**:
+- Assembly cycle: **≤ 1 minute**
+- Palletizing one cart: **≤ assembly cycle time**
+- This ensures Cart 1 is always ready again before Cart 2 is full, preventing downtime.
+
+**Key behaviors**:
+- Suction grip on completed drone at staging zone
+- Linear travel to active cart position
+- Place drone inside open box
+- Close box lid
+- Advance to next box slot
+- On cart full: signal cart exit, switch target cart
+
+---
 
 ```
 drone-packaging-simulation-unity/
 ├── Assets/
-│   ├── Brazos.cs                    # Gripper arm — ArticulationBody + pose sequencer
-│   ├── Ventosa.cs                   # Suction arm — ArticulationBody + suction logic
-│   ├── OrquestadorDron.cs           # Master coordinator — reads JSON, polls arms
+│   ├── Brazos.cs                    # Gripper arm — ArticulationBody + pose sequencer (Alpha, Beta)
+│   ├── Ventosa.cs                   # Suction arm — ArticulationBody + suction logic (Omega, Paletizador)
+│   ├── OrquestadorDron.cs           # Master coordinator — reads JSON, polls all 4 arms
 │   ├── Ensamble.cs                  # Snap logic for PCB / Tapa (ventosa pieces)
 │   ├── EnsambleGri.cs               # Snap logic for Motors / Hélices (gripper pieces)
 │   ├── Spawner.cs                   # Instantiates prefabs and assigns assembly refs
@@ -554,14 +656,14 @@ drone-packaging-simulation-unity/
 │   ├── CentrarBase.cs               # Centers Base on XZ after placement
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Moves conveyor/drawer between waypoints
+│   ├── MoverCajon.cs                # Moves cart between waypoints (Cart 1 / Cart 2 rotation)
 │   ├── Cian.mat                     # Material asset
 │   ├── CV_1.renderTexture           # Render texture (camera view 1)
 │   ├── CV_5.renderTexture           # Render texture (camera view 5)
 │   ├── New Animator Controller.*    # Animator assets
 │   ├── StreamingAssets/
-│   │   └── ensamblaje_dron.json     # Master JSON — 4 assembly stages
-│   ├── JSON_Generados/              # 12 pose JSON files (Alpha, Beta, Omega, Motors…)
+│   │   └── ensamblaje_dron.json     # Master JSON — 8 assembly stages
+│   ├── JSON_Generados/              # 12+ pose JSON files (Alpha, Beta, Omega, Paletizador…)
 │   └── Scenes/
 │       └── SampleScene.unity        # Main simulation scene
 ├── Packages/
@@ -863,62 +965,6 @@ body.xDrive = drive;
 
 ---
 
-## Roadmap
-
-### Phase 1: Core (Completed)
-
-- [x] Arm system with ArticulationBody (Brazos + Ventosa)
-- [x] Functional gripper and suction cup
-- [x] JSON pose sequencer (12 JSON files)
-- [x] 4-stage orchestrator (ensamblaje_dron.json)
-- [x] Snap/assembly mechanics (Ensamble + EnsambleGri)
-- [x] World-space preservation
-- [x] Race condition fixes
-- [x] Production spawner with staggered instantiation
-
-### Phase 2: Optimization (In Progress)
-
-- [ ] CAD prefab pivot correction
-- [ ] Performance profiling (stable 60 FPS)
-- [ ] Reduce coroutine allocations
-- [ ] Object pooling for parts
-
-### Phase 3: Advanced Features
-
-- [ ] **Sequence editor GUI**
-  - Visual timeline for poses
-  - Drag & drop actions
-  - Real-time preview
-
-- [ ] **QA validation system**
-  - Collision detection during assembly
-  - Precision metrics
-  - Cycle time analytics
-
-- [ ] **Data export**
-  - CSV metrics per stage
-  - Position heatmaps
-  - Session replay
-
-### Phase 4: Scalability
-
-- [ ] **Multi-cell systems**
-  - Hierarchical orchestrator
-  - Inter-cell communication
-  - Chain production
-
-- [ ] **ML/RL Integration**
-  - Unity ML-Agents
-  - Trajectory optimization
-  - Anomaly detection
-
-- [ ] **ROS2 Bridge** (optional)
-  - ROS2 Humble integration
-  - Simulation + real hardware
-  - Hybrid control
-
----
-
 ## Authors
 
 **Jorge Andres Fajardo Mora**  
@@ -949,8 +995,8 @@ This repository and all its contents — including but not limited to source cod
 ![ArticulationBody](https://img.shields.io/badge/Física-ArticulationBody-orange?style=for-the-badge)
 ![Estado](https://img.shields.io/badge/Estado-Activo-success?style=for-the-badge)
 
-**Simulación de Celda de Ensamblaje Robótico Industrial**  
-Brazos Articulados Coordinados · Movimiento JSON · Física Realista · Sistemas tipo Festo
+**Simulación de Celda de Ensamblaje Robótico**  
+Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
 [English](#-drone-packaging-simulation--unity) | **Español**
 
@@ -967,7 +1013,6 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista · Sistema
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Instalación](#instalación)
 - [Problemas Resueltos](#problemas-resueltos)
-- [Hoja de Ruta](#hoja-de-ruta)
 - [Autores](#autores)
 - [Licencia](#licencia-y-derechos)
 
@@ -975,19 +1020,20 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista · Sistema
 
 ## Descripción General
 
-Este proyecto es una **simulación industrial basada en Unity** que recrea una celda robótica de ensamblaje de drones. Reproduce un proceso de producción automatizado en el que tres brazos robóticos articulados colaboran para ensamblar un dron mediante interacciones físicas realistas, secuencias de movimiento coordinadas y mecanismos de agarre diferenciados.
+Este proyecto es una **simulación basada en Unity** que recrea una celda robótica de ensamblaje y paletizado de drones. Reproduce un proceso de producción automatizado en el que cuatro brazos robóticos articulados colaboran para ensamblar un dron y empaquetarlo en carros de producción, mediante interacciones físicas realistas, secuencias de movimiento coordinadas y mecanismos de agarre diferenciados.
 
-La simulación está orientada a la **validación virtual de procesos** en contextos industriales y académicos, con una arquitectura inspirada en sistemas de automatización **tipo Festo**.
+La simulación está orientada a la **validación virtual de procesos** en contextos técnicos y académicos.
 
 ### Características Clave
 
-- 🦾 **Tres brazos robóticos coordinados** (Alpha, Beta, Omega) con física ArticulationBody
-- 🔄 **Orquestación de 4 etapas** con secuencias basadas en JSON
+- 🦾 **Cuatro brazos robóticos coordinados** (Alpha, Beta, Omega, Paletizador) con física ArticulationBody
+- 🔄 **Orquestación de 8 etapas** con secuencias basadas en JSON
 - ⚙️ **Efectores finales duales**: Gripper (`Brazos.cs`) y Ventosa (`Ventosa.cs`)
 - 🎯 **Sistema de snap por proximidad** para ensamblaje de componentes
 - 📊 **Ejecución asíncrona basada en coroutines** con gestión de dependencias
 - 🔧 **Preservación de world-space** para prevenir artefactos de rotación
 - 🏭 **Spawner de producción** con instanciación escalonada de piezas
+- 📦 **Brazo paletizador** con sistema de rotación de dos carros — ciclo continuo de empaquetado sincronizado con el tiempo de ensamblaje
 
 ---
 
@@ -997,7 +1043,7 @@ La simulación está orientada a la **validación virtual de procesos** en conte
 
 | Criterio | Justificación |
 |----------|---------------|
-| **LTS (Long-Term Support)** | Estabilidad garantizada hasta 2024, ideal para proyectos de simulación industrial |
+| **LTS (Long-Term Support)** | Estabilidad garantizada hasta 2024, ideal para proyectos de simulación |
 | **ArticulationBody maduro** | Introducido en 2020.1, completamente estable en 2021.3 para simulación robótica precisa |
 | **Física determinista** | Solver iterations configurables, esencial para robótica |
 | **C# 10.0** | Características modernas: records, pattern matching, global usings |
@@ -1036,7 +1082,7 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 graph TB
     subgraph "Capa de Orquestación"
         O[OrquestadorDron]
-        JSON[ensamblaje_dron.json<br/>4 Etapas]
+        JSON[ensamblaje_dron.json<br/>8 Etapas]
         P[Produccion.cs<br/>Secuenciador de Spawn]
     end
     
@@ -1044,6 +1090,7 @@ graph TB
         B1[Alpha<br/>Brazos — Gripper]
         B2[Beta<br/>Brazos — Gripper]
         B3[Omega<br/>Ventosa — Succión]
+        B4[Paletizador<br/>Ventosa — Succión]
     end
     
     subgraph "Capa de Sistemas de Agarre"
@@ -1060,11 +1107,17 @@ graph TB
         HELICE[Hélices x4]
         TAPA[Tapa]
     end
+
+    subgraph "Sistema de Paletizado"
+        CARRO1[Carro 1<br/>cajas]
+        CARRO2[Carro 2<br/>cajas]
+    end
     
     O -->|Lee JSON| JSON
     O -->|Coordina| B1
     O -->|Coordina| B2
     O -->|Coordina| B3
+    O -->|Coordina| B4
     P -->|Instancia piezas| BASE
     P -->|Instancia piezas| PCB
     P -->|Instancia piezas| MOTOR
@@ -1074,28 +1127,37 @@ graph TB
     B1 -.->|Usa| G
     B2 -.->|Usa| G
     B3 -.->|Usa| V
+    B4 -.->|Usa| V
     
     G -->|Lógica Snap| E2
     V -->|Lógica Snap| E1
     
     B1 -->|Ensambla| BASE
     B3 -->|Ensambla| PCB
+    B1 -->|Ensambla| MOTOR
     B2 -->|Ensambla| MOTOR
+    B1 -->|Ensambla| HELICE
     B2 -->|Ensambla| HELICE
+    B3 -->|Ensambla| TAPA
+    B3 -->|Transfiere dron a zona| B4
+    B4 -->|Paletiza en| CARRO1
+    B4 -->|Paletiza en| CARRO2
     
     style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
+    style B4 fill:#B75A34,stroke:#5C2506,color:#fff
 ```
 
 ### Configuración de Brazos
 
 | Brazo | Clase | Efector Final | Rol | Componentes Manejados |
 |-------|-------|--------------|-----|----------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | Manejo de componentes grandes | Base |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | Manejo de componentes mecánicos | Motores x4, Hélices x4 |
-| **Omega** | `Ventosa.cs` | Ventosa (succión) | Manejo de componentes delicados | PCB, Tapa |
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas grandes y mecánicas | Base, Motores diagonales x2, Hélices diagonales x2 |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas mecánicas (en pareja con Alpha) | Motores diagonales x2, Hélices diagonales x2 |
+| **Omega** | `Ventosa.cs` | Ventosa (succión) | Ensamble — piezas delicadas + transferencia de dron | PCB, Tapa, dron completado → zona de paletizado |
+| **Paletizador** | `Ventosa.cs` | Ventosa (succión) | Paletizado — recoge dron, llena carros | Drones completados → Cajas de Carro 1 / Carro 2 |
 
 ### Flujo de Secuencia de Ensamblaje
 
@@ -1105,43 +1167,93 @@ sequenceDiagram
     participant A as Alpha (Brazos)
     participant B as Beta (Brazos)
     participant W as Omega (Ventosa)
+    participant P as Paletizador (Ventosa)
     participant D as Dron Ensamblado
-    
-    Note over O: Inicio - Carga ensamblaje_dron.json
-    
-    O->>A: Etapa 1 — Poses_BaseNueva.json
+    participant C as Carro 1 / Carro 2
+
+    Note over O: Inicio — Carga ensamblaje_dron.json
+
+    O->>A: Etapa 1 — Colocar Base
     activate A
-    A->>A: Recorre 6 poses
-    A->>A: Agarrar Base (gripperClosed=true)
-    A->>D: Soltar Base en punto de ensamble
+    A->>D: Agarre y suelta Base en punto de ensamble
     A-->>O: jugandoSecuencia = false
     deactivate A
-    
-    O->>W: Etapa 2 — Poses_PCB.json
+
+    O->>W: Etapa 2 — Colocar PCB
     activate W
-    W->>W: Activar ventosa
-    W->>W: Animar atracción (Lerp)
-    W->>D: Ensamblar PCB sobre Base
+    W->>D: Agarre por ventosa → ensambla PCB sobre Base
     W-->>O: jugandoSecuencia = false
     deactivate W
-    
-    O->>B: Etapa 3 — Poses_Motor1.json (Motor 1 y 3)
+
+    O->>A: Etapa 3 — Motores diagonales (1 y 3)
+    O->>B: Etapa 3 — Motores diagonales (1 y 3)
+    activate A
     activate B
-    loop Motores 1 y 3
-        B->>D: Ensamblar Motor (snap EnsambleGri)
-    end
+    A->>D: Ensamblar Motor (par diagonal)
+    B->>D: Ensamblar Motor (par diagonal)
+    A-->>O: jugandoSecuencia = false
     B-->>O: jugandoSecuencia = false
+    deactivate A
     deactivate B
-    
-    O->>B: Etapa 4 — Poses_Motor2.json (Motor 2 y 4)
+
+    O->>A: Etapa 4 — Motores diagonales (2 y 4)
+    O->>B: Etapa 4 — Motores diagonales (2 y 4)
+    activate A
     activate B
-    loop Motores 2 y 4
-        B->>D: Ensamblar Motor (snap EnsambleGri)
-    end
+    A->>D: Ensamblar Motor (par diagonal)
+    B->>D: Ensamblar Motor (par diagonal)
+    A-->>O: jugandoSecuencia = false
     B-->>O: jugandoSecuencia = false
+    deactivate A
     deactivate B
-    
-    Note over O,D: ✅ Dron completamente ensamblado
+
+    O->>W: Etapa 5 — Colocar Tapa
+    activate W
+    W->>D: Agarre por ventosa → ensambla Tapa (cierre final)
+    W-->>O: jugandoSecuencia = false
+    deactivate W
+
+    O->>A: Etapa 6 — Hélices diagonales (1 y 3)
+    O->>B: Etapa 6 — Hélices diagonales (1 y 3)
+    activate A
+    activate B
+    A->>D: Ensamblar Hélice (par diagonal)
+    B->>D: Ensamblar Hélice (par diagonal)
+    A-->>O: jugandoSecuencia = false
+    B-->>O: jugandoSecuencia = false
+    deactivate A
+    deactivate B
+
+    O->>A: Etapa 7 — Hélices diagonales (2 y 4)
+    O->>B: Etapa 7 — Hélices diagonales (2 y 4)
+    activate A
+    activate B
+    A->>D: Ensamblar Hélice (par diagonal)
+    B->>D: Ensamblar Hélice (par diagonal)
+    A-->>O: jugandoSecuencia = false
+    B-->>O: jugandoSecuencia = false
+    deactivate A
+    deactivate B
+
+    O->>W: Etapa 8 — Transferir dron a zona paletizador
+    activate W
+    W->>W: Agarre por ventosa del dron completo
+    W->>D: Ubica dron en zona de paletizado
+    W-->>O: jugandoSecuencia = false
+    deactivate W
+
+    Note over O,D: Ensamblaje completo (< 1 min de ciclo) — Paletizador toma el control
+
+    loop Hasta llenar el carro activo
+        P->>D: Recoge dron de zona de paletizado
+        P->>C: Se desplaza al carro activo
+        P->>C: Ubica dron dentro de caja y cierra caja
+    end
+
+    Note over P,C: Carro 1 lleno → se retira de zona
+    Note over P,C: Paletizador cambia a Carro 2
+    Note over P,C: Carro 1 regresa con cajas vacías mientras se llena Carro 2
+    Note over P,C: Ciclo se repite continuamente
 ```
 
 ### Diagrama de Interacción de Scripts
@@ -1152,6 +1264,7 @@ classDiagram
         +Brazos alfa
         +Brazos beta
         +Ventosa omega
+        +Ventosa paletizador
         +string archivoMaestro
         +int etapaActual
         +bool ensamblajeFinalizado
@@ -1237,6 +1350,7 @@ classDiagram
     OrquestadorDron "1" --> "1" Brazos : alfa
     OrquestadorDron "1" --> "1" Brazos : beta
     OrquestadorDron "1" --> "1" Ventosa : omega
+    OrquestadorDron "1" --> "1" Ventosa : paletizador
     Brazos "1" --> "*" EnsambleGri : interactúa via GripperTrigger
     Ventosa "1" --> "*" Ensamble : interactúa via SuctionTrigger
     Brazos "1" --> "0..1" CentrarBase : usa
@@ -1289,7 +1403,7 @@ public ArticulationBody Gear2;           // X Drive (espejo de Gear1)
 
 ### 2. Sistema de Ventosa (`Ventosa.cs`)
 
-**Comportamiento**: Animación visual de atracción magnética antes de la fijación. Omega maneja el PCB y la Tapa.
+**Comportamiento**: Animación visual de atracción magnética antes de la fijación. Omega maneja el PCB, la Tapa y la transferencia del dron completo. El Paletizador usa la misma clase para recoger el dron y desplazarlo hasta los carros.
 
 **Implementación**:
 ```csharp
@@ -1344,43 +1458,50 @@ Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JS
 |---------|-------|-------------|
 | `Poses_BaseNueva.json` | Alpha | Colocar base del dron (6 poses) |
 | `Poses_PCB.json` | Omega | Colocar PCB con ventosa |
-| `Poses_Motor1.json` | Beta | Motores 1 y 3 simultáneos (6 poses) |
-| `Poses_Motor2.json` | Beta | Motores 2 y 4 simultáneos (6 poses) |
-| `Poses_Motor3.json` | Beta | Secuencia Motor 3 |
-| `Poses_Motor4.json` | Beta | Secuencia Motor 4 |
+| `Poses_Motor1.json` | Alpha | Motor diagonal 1 (6 poses) |
+| `Poses_Motor2.json` | Alpha | Motor diagonal 2 (6 poses) |
+| `Poses_Motor3.json` | Beta | Motor diagonal 3 |
+| `Poses_Motor4.json` | Beta | Motor diagonal 4 |
 | `Poses_Tapa.json` | Omega | Colocar tapa (cierre final) |
 | `Poses_Alpha.json` | Alpha | Secuencia alternativa Alpha |
 | `Poses_Beta.json` | Beta | Secuencia alternativa Beta |
 | `Poses_Omega.json` | Omega | Secuencia alternativa Omega |
-| `Poses_Palet.json` | — | Secuencia de movimiento de palet |
+| `Poses_Palet.json` | Paletizador | Secuencia de paletizado / movimiento de carro |
 | `poses2_cubo.json` | — | Secuencia de prueba/debug |
 
 ---
 
 ### 4. Orquestador Multi-Brazo (`OrquestadorDron.cs`)
 
-`OrquestadorDron.cs` es el MonoBehaviour central de coordinación. Lee la secuencia de ensamble maestra (`ensamblaje_dron.json`) desde `StreamingAssets`, activa cada brazo por nombre (`Alpha`, `Beta`, `Omega`) y sondea los flags `jugandoSecuencia` en `Update()` antes de avanzar.
+`OrquestadorDron.cs` es el MonoBehaviour central de coordinación. Lee la secuencia de ensamble maestra (`ensamblaje_dron.json`) desde `StreamingAssets`, activa cada brazo por nombre (`Alpha`, `Beta`, `Omega`, `Paletizador`) y sondea los flags `jugandoSecuencia` en `Update()` antes de avanzar.
 
-**JSON maestro real** (`ensamblaje_dron.json`):
+**JSON maestro real** (`ensamblaje_dron.json`) — 8 etapas de ensamblaje + paletizado:
 ```json
 {
   "etapas": [
-    { "nombre": "Colocar base",                    "brazos": [{"brazo":"Alpha","archivo":"Poses_BaseNueva.json"}, ...] },
-    { "nombre": "Colocar PCB",                     "brazos": [{"brazo":"Omega","archivo":"Poses_PCB.json"}, ...] },
-    { "nombre": "Motor 1 y Motor 3 simultaneos",   "brazos": [{"brazo":"Beta","archivo":"Poses_Motor1.json"}, ...] },
-    { "nombre": "Motor 2 y Motor 4 simultaneos",   "brazos": [{"brazo":"Beta","archivo":"Poses_Motor2.json"}, ...] }
+    { "nombre": "Colocar base",                       "brazos": [{"brazo":"Alpha","archivo":"Poses_BaseNueva.json"}, ...] },
+    { "nombre": "Colocar PCB",                        "brazos": [{"brazo":"Omega","archivo":"Poses_PCB.json"}, ...] },
+    { "nombre": "Motores diagonales 1 y 3",           "brazos": [{"brazo":"Alpha","archivo":"Poses_Motor1.json"}, {"brazo":"Beta","archivo":"Poses_Motor3.json"}] },
+    { "nombre": "Motores diagonales 2 y 4",           "brazos": [{"brazo":"Alpha","archivo":"Poses_Motor2.json"}, {"brazo":"Beta","archivo":"Poses_Motor4.json"}] },
+    { "nombre": "Colocar tapa",                       "brazos": [{"brazo":"Omega","archivo":"Poses_Tapa.json"}, ...] },
+    { "nombre": "Helices diagonales 1 y 3",           "brazos": [{"brazo":"Alpha","archivo":"Poses_Helice1.json"}, {"brazo":"Beta","archivo":"Poses_Helice3.json"}] },
+    { "nombre": "Helices diagonales 2 y 4",           "brazos": [{"brazo":"Alpha","archivo":"Poses_Helice2.json"}, {"brazo":"Beta","archivo":"Poses_Helice4.json"}] },
+    { "nombre": "Transferir dron a zona paletizador", "brazos": [{"brazo":"Omega","archivo":"Poses_TransferDron.json"}, ...] }
   ]
 }
 ```
 
+> **Nota**: El Paletizador ejecuta su propio bucle independiente a partir de la Etapa 8, operando en paralelo con el siguiente ciclo de ensamblaje. Su secuencia no forma parte de `ensamblaje_dron.json` — es gestionada por un controlador de paletizado dedicado.
+
 **Patrón de orquestación** (basado en polling, no en coroutine):
 ```csharp
 void Update() {
-    bool alfaListo  = !alfaActivo  || !alfa.jugandoSecuencia;
-    bool betaListo  = !betaActivo  || !beta.jugandoSecuencia;
-    bool omegaListo = !omegaActivo || !omega.jugandoSecuencia;
+    bool alfaListo        = !alfaActivo        || !alfa.jugandoSecuencia;
+    bool betaListo        = !betaActivo        || !beta.jugandoSecuencia;
+    bool omegaListo       = !omegaActivo       || !omega.jugandoSecuencia;
+    bool paletizadorListo = !paletizadorActivo || !paletizador.jugandoSecuencia;
 
-    if (alfaListo && betaListo && omegaListo) {
+    if (alfaListo && betaListo && omegaListo && paletizadorListo) {
         etapaActual++;
         if (etapaActual < maestro.etapas.Count)
             EjecutarEtapa(etapaActual);
@@ -1480,14 +1601,43 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 
 ---
 
+### 8. Sistema de Paletizado (`Paletizador` — `Ventosa.cs`)
+
+El Paletizador es un cuarto brazo de ventosa que opera de forma independiente de la secuencia de ensamblaje. Una vez que Omega transfiere el dron completado a la zona de paletizado (Etapa 8), el Paletizador lo recoge y lo ubica dentro de una caja en el carro activo. Este ciclo está diseñado para completarse dentro del mismo tiempo que un ciclo de ensamblaje completo (< 1 minuto), permitiendo un paralelismo continuo sin paradas.
+
+**Lógica de rotación de dos carros**:
+```
+Carro 1 activo  → Paletizador llena cajas
+Carro 1 lleno   → Carro 1 se retira de la zona
+                → Paletizador cambia a Carro 2
+Carro 1 regresa con cajas vacías
+                → Paletizador termina Carro 2 → cambia de vuelta a Carro 1
+                → Ciclo se repite indefinidamente
+```
+
+**Restricción de tiempo**:
+- Ciclo de ensamblaje: **≤ 1 minuto**
+- Paletizado de un carro: **≤ tiempo de ciclo de ensamblaje**
+- Esto garantiza que el Carro 1 esté siempre listo antes de que el Carro 2 se llene, evitando tiempos muertos.
+
+**Comportamientos clave**:
+- Agarre por ventosa del dron completado en la zona de paletizado
+- Desplazamiento lineal hasta la posición del carro activo
+- Ubicación del dron dentro de la caja abierta
+- Cierre de la caja
+- Avance al siguiente slot de caja
+- Al completar el carro: señal de salida del carro, cambio de carro objetivo
+
+---
+
 ## Estructura del Proyecto
 
 ```
 drone-packaging-simulation-unity/
 ├── Assets/
-│   ├── Brazos.cs                    # Brazo gripper — ArticulationBody + secuenciador de poses
-│   ├── Ventosa.cs                   # Brazo ventosa — ArticulationBody + lógica de succión
-│   ├── OrquestadorDron.cs           # Coordinador maestro — lee JSON, sondea brazos
+│   ├── Brazos.cs                    # Brazo gripper — ArticulationBody + secuenciador de poses (Alpha, Beta)
+│   ├── Ventosa.cs                   # Brazo ventosa — ArticulationBody + lógica de succión (Omega, Paletizador)
+│   ├── OrquestadorDron.cs           # Coordinador maestro — lee JSON, sondea los 4 brazos
 │   ├── Ensamble.cs                  # Lógica snap para PCB / Tapa (piezas de ventosa)
 │   ├── EnsambleGri.cs               # Lógica snap para Motores / Hélices (piezas de gripper)
 │   ├── Spawner.cs                   # Instancia prefabs y asigna refs de ensamble
@@ -1496,14 +1646,14 @@ drone-packaging-simulation-unity/
 │   ├── CentrarBase.cs               # Centra la Base en XZ después de la colocación
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Mueve la cinta/cajón entre waypoints
+│   ├── MoverCajon.cs                # Mueve el carro entre waypoints (rotación Carro 1 / Carro 2)
 │   ├── Cian.mat                     # Material asset
 │   ├── CV_1.renderTexture           # Textura de renderizado (vista de cámara 1)
 │   ├── CV_5.renderTexture           # Textura de renderizado (vista de cámara 5)
 │   ├── New Animator Controller.*    # Assets de animador
 │   ├── StreamingAssets/
-│   │   └── ensamblaje_dron.json     # JSON maestro — 4 etapas de ensamblaje
-│   ├── JSON_Generados/              # 12 archivos JSON de poses (Alpha, Beta, Omega, Motores…)
+│   │   └── ensamblaje_dron.json     # JSON maestro — 8 etapas de ensamblaje
+│   ├── JSON_Generados/              # 12+ archivos JSON de poses (Alpha, Beta, Omega, Paletizador…)
 │   └── Scenes/
 │       └── SampleScene.unity        # Escena principal de simulación
 ├── Packages/
@@ -1802,62 +1952,6 @@ body.xDrive = drive;
 "Pickable" — Todas las piezas agarrables (Base, PCB, Motores, Hélices, Tapa)
 "PCB"      — Tag específico del PCB para manejo especializado
 ```
-
----
-
-## Hoja de Ruta
-
-### Fase 1: Core (Completado)
-
-- [x] Sistema de brazos con ArticulationBody (Brazos + Ventosa)
-- [x] Gripper y ventosa funcionales
-- [x] JSON sequencer (12 archivos JSON de poses)
-- [x] Orquestador de 4 etapas (ensamblaje_dron.json)
-- [x] Mecánica de snap/ensamble (Ensamble + EnsambleGri)
-- [x] Preservación de world-space
-- [x] Race condition fixes
-- [x] Spawner de producción con instanciación escalonada
-
-### Fase 2: Optimización (En Progreso)
-
-- [ ] Corrección de pivots en prefabs CAD
-- [ ] Performance profiling (60 FPS estable)
-- [ ] Reducir allocations en coroutines
-- [ ] Object pooling para piezas
-
-### Fase 3: Features Avanzadas
-
-- [ ] **Editor de secuencias GUI**
-  - Timeline visual para poses
-  - Drag & drop de acciones
-  - Preview en tiempo real
-
-- [ ] **Sistema de validación QA**
-  - Detección de colisiones durante ensamble
-  - Métricas de precisión
-  - Tiempos de ciclo
-
-- [ ] **Exportación de datos**
-  - CSV de métricas por etapa
-  - Heatmaps de posiciones
-  - Replay de sesiones
-
-### Fase 4: Escalabilidad
-
-- [ ] **Multi-celdas**
-  - Orquestador jerárquico
-  - Comunicación inter-celda
-  - Producción en cadena
-
-- [ ] **ML/RL Integration**
-  - Unity ML-Agents
-  - Optimización de trayectorias
-  - Detección de anomalías
-
-- [ ] **ROS2 Bridge** (opcional)
-  - Integración con ROS2 Humble
-  - Simulación + hardware real
-  - Control híbrido
 
 ---
 
