@@ -91,70 +91,47 @@ Physics.IgnoreCollision // Dynamic collision control
 ### Component Diagram
 
 ```mermaid
-graph TB
-    subgraph "Orchestration Layer"
+graph LR
+    subgraph ORCH["Orchestration"]
+        direction TB
         O[OrquestadorDron]
-        JSON[ensamblaje_dron.json<br/>4 Stages]
-        P[Produccion.cs<br/>Spawn Sequencer]
-    end
-    
-    subgraph "Robotic Arms Layer"
-        B1[Alpha<br/>Brazos — Gripper]
-        B2[Beta<br/>Brazos — Gripper]
-        B3[Omega<br/>Ventosa — Suction]
-        B4[Paletizador<br/>Ventosa — Suction]
-    end
-    
-    subgraph "Grip Systems Layer"
-        G[GripperTrigger]
-        V[SuctionTrigger]
-        E1[Ensamble.cs]
-        E2[EnsambleGri.cs]
-    end
-    
-    subgraph "Drone Components"
-        BASE[Base]
-        PCB[PCB]
-        MOTOR[Motors x4]
-        HELICE[Hélices x4]
-        TAPA[Tapa]
+        JSON[(ensamblaje_dron.json<br/>8 stages)]
+        PROD[Produccion.cs]
+        O -- reads --> JSON
     end
 
-    subgraph "Palletizing System"
-        CARRO1[Cart 1<br/>boxes]
-        CARRO2[Cart 2<br/>boxes]
+    subgraph ASSEMBLY["Assembly Cell"]
+        direction TB
+        subgraph GRIPPERS["Gripper Arms"]
+            B1[Alpha · Brazos]
+            B2[Beta · Brazos]
+        end
+        subgraph SUCTION["Suction Arms"]
+            B3[Omega · Ventosa]
+        end
+        subgraph PARTS["Drone Parts"]
+            BASE[Base] --- PCB[PCB]
+            MOTOR[Motors ×4] --- HELICE[Hélices ×4]
+            TAPA[Tapa]
+        end
+        B1 & B2 -->|grip + snap| MOTOR & HELICE
+        B1 -->|grip + snap| BASE
+        B3 -->|suction + snap| PCB & TAPA
     end
-    
-    O -->|Reads JSON| JSON
-    O -->|Coordinates| B1
-    O -->|Coordinates| B2
-    O -->|Coordinates| B3
-    O -->|Coordinates| B4
-    P -->|Spawns parts| BASE
-    P -->|Spawns parts| PCB
-    P -->|Spawns parts| MOTOR
-    P -->|Spawns parts| HELICE
-    P -->|Spawns parts| TAPA
-    
-    B1 -.->|Uses| G
-    B2 -.->|Uses| G
-    B3 -.->|Uses| V
-    B4 -.->|Uses| V
-    
-    G -->|Snap Logic| E2
-    V -->|Snap Logic| E1
-    
-    B1 -->|Assembles| BASE
-    B3 -->|Assembles| PCB
-    B1 -->|Assembles| MOTOR
-    B2 -->|Assembles| MOTOR
-    B1 -->|Assembles| HELICE
-    B2 -->|Assembles| HELICE
-    B3 -->|Assembles| TAPA
-    B3 -->|Moves drone to zone| B4
-    B4 -->|Palletizes into| CARRO1
-    B4 -->|Palletizes into| CARRO2
-    
+
+    subgraph PALLET["Palletizing"]
+        direction TB
+        B4[Paletizador · Ventosa]
+        CARRO1[Cart 1]
+        CARRO2[Cart 2]
+        B4 -->|fills| CARRO1
+        B4 -.->|rotates to| CARRO2
+    end
+
+    PROD -->|spawns| PARTS
+    O -->|triggers| B1 & B2 & B3 & B4
+    B3 -->|transfers drone| B4
+
     style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -175,198 +152,143 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant O as OrquestadorDron
-    participant A as Alpha (Brazos)
-    participant B as Beta (Brazos)
-    participant W as Omega (Ventosa)
-    participant P as Paletizador (Ventosa)
-    participant D as Assembled Drone
-    participant C as Cart 1 / Cart 2
+    participant O as Orchestrator
+    participant A as Alpha
+    participant B as Beta
+    participant W as Omega
+    participant P as Paletizador
+    participant D as Drone
 
-    Note over O: Start — Load ensamblaje_dron.json
+    rect rgb(30, 80, 60)
+        Note over O,D: Assembly Phase (< 1 min)
+        O->>A: Stage 1 — Place Base
+        A->>D: grip → release Base
 
-    O->>A: Stage 1 — Place Base
-    activate A
-    A->>D: Grip & release Base at assembly point
-    A-->>O: jugandoSecuencia = false
-    deactivate A
+        O->>W: Stage 2 — Place PCB
+        W->>D: suction → snap PCB
 
-    O->>W: Stage 2 — Place PCB
-    activate W
-    W->>D: Suction grip → assemble PCB on Base
-    W-->>O: jugandoSecuencia = false
-    deactivate W
+        O->>+A: Stage 3 — Motors 1 & 3
+        O->>+B: Stage 3 — Motors 1 & 3
+        A->>D: snap Motor
+        B->>D: snap Motor
+        deactivate A
+        deactivate B
 
-    O->>A: Stage 3 — Diagonal Motors (1 & 3)
-    O->>B: Stage 3 — Diagonal Motors (1 & 3)
-    activate A
-    activate B
-    A->>D: Assemble Motor (diagonal pair)
-    B->>D: Assemble Motor (diagonal pair)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>+A: Stage 4 — Motors 2 & 4
+        O->>+B: Stage 4 — Motors 2 & 4
+        A->>D: snap Motor
+        B->>D: snap Motor
+        deactivate A
+        deactivate B
 
-    O->>A: Stage 4 — Diagonal Motors (2 & 4)
-    O->>B: Stage 4 — Diagonal Motors (2 & 4)
-    activate A
-    activate B
-    A->>D: Assemble Motor (diagonal pair)
-    B->>D: Assemble Motor (diagonal pair)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>W: Stage 5 — Place Tapa
+        W->>D: suction → snap Tapa
 
-    O->>W: Stage 5 — Place Tapa
-    activate W
-    W->>D: Suction grip → assemble Tapa (final closure)
-    W-->>O: jugandoSecuencia = false
-    deactivate W
+        O->>+A: Stage 6 — Hélices 1 & 3
+        O->>+B: Stage 6 — Hélices 1 & 3
+        A->>D: snap Hélice
+        B->>D: snap Hélice
+        deactivate A
+        deactivate B
 
-    O->>A: Stage 6 — Diagonal Hélices (1 & 3)
-    O->>B: Stage 6 — Diagonal Hélices (1 & 3)
-    activate A
-    activate B
-    A->>D: Assemble Hélice (diagonal pair)
-    B->>D: Assemble Hélice (diagonal pair)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>+A: Stage 7 — Hélices 2 & 4
+        O->>+B: Stage 7 — Hélices 2 & 4
+        A->>D: snap Hélice
+        B->>D: snap Hélice
+        deactivate A
+        deactivate B
 
-    O->>A: Stage 7 — Diagonal Hélices (2 & 4)
-    O->>B: Stage 7 — Diagonal Hélices (2 & 4)
-    activate A
-    activate B
-    A->>D: Assemble Hélice (diagonal pair)
-    B->>D: Assemble Hélice (diagonal pair)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
-
-    O->>W: Stage 8 — Transfer drone to staging zone
-    activate W
-    W->>W: Suction grip completed drone
-    W->>D: Place drone in Paletizador staging zone
-    W-->>O: jugandoSecuencia = false
-    deactivate W
-
-    Note over O,D: Assembly complete (< 1 min cycle) — Paletizador takes over
-
-    loop Until Cart is full
-        P->>D: Pick drone from staging zone
-        P->>C: Move to active cart
-        P->>C: Place drone in box & close box
+        O->>W: Stage 8 — Transfer drone
+        W->>P: place drone in staging zone
     end
 
-    Note over P,C: Cart 1 full → exits zone
-    Note over P,C: Paletizador switches to Cart 2
-    Note over P,C: Cart 1 returns with empty boxes while Cart 2 is being filled
-    Note over P,C: Cycle repeats continuously
+    rect rgb(120, 60, 20)
+        Note over P: Palletizing Phase (parallel loop)
+        loop Each drone
+            P->>D: pick from staging zone
+            P->>P: move to active cart
+            P->>P: place in box · close box
+        end
+        Note over P: Cart full → swap cart → repeat
+    end
 ```
 
 ### Script Interaction Diagram
 
 ```mermaid
 classDiagram
+    direction TB
+
     class OrquestadorDron {
-        +Brazos alfa
-        +Brazos beta
-        +Ventosa omega
-        +Ventosa paletizador
+        +Brazos alfa, beta
+        +Ventosa omega, paletizador
         +string archivoMaestro
         +int etapaActual
-        +bool ensamblajeFinalizado
         +CargarMaestro()
         +EjecutarEtapa(int index)
     }
-    
+
     class Brazos {
-        +ArticulationBody Waist
-        +ArticulationBody Arm01
-        +ArticulationBody Arm02
-        +ArticulationBody Arm03
-        +ArticulationBody GripperAssembly
-        +ArticulationBody Gear1
-        +ArticulationBody Gear2
+        +ArticulationBody Waist..Gear2
         +List~RobotPose~ poses
         +bool jugandoSecuencia
-        +string saveFileName
         +IniciarSecuencia()
-        +LoadFromFile()
-        +SaveToFile()
         +AgarrarObjeto()
         +LiberarObjeto()
+        +LoadFromFile()
     }
-    
+
     class Ventosa {
-        +ArticulationBody Waist
-        +ArticulationBody Arm01
-        +ArticulationBody Arm02
-        +ArticulationBody Arm03
+        +ArticulationBody Waist..Arm03
         +bool suctionActive
-        +float suctionForce
         +List~VentosaPose~ poses
         +bool jugandoSecuencia
         +IniciarSecuencia()
-        +LoadFromFile()
         +NotifyObjectInside()
+        +LoadFromFile()
     }
-    
+
+    class EnsambleGri {
+        +Transform puntoEnsamble
+        +bool esHelice
+        +bool forzarRotacionAbsoluta
+        +Transform baseParent
+        +ConfigurarRotacionPorNumero()
+    }
+
     class Ensamble {
         +Transform puntoEnsamble
-        +float offsetHundimiento
-        +float velocidadEncaje
         +bool snapPorProximidad
-        +float distanciaActivacionSnap
         +bool congelarAlLiberar
         +Vector3 rotacionFinalEnsamble
         +NotificarLiberad()
     }
-    
-    class EnsambleGri {
-        +Transform puntoEnsamble
-        +float distanciaActivacion
-        +bool esHelice
-        +bool forzarRotacionAbsoluta
-        +Vector3 rotacionForzada
-        +bool usarRotacionPorNumero
-        +Transform baseParent
-        +ConfigurarRotacionPorNumero()
-    }
-    
-    class Spawner {
-        +GameObject prefab
-        +Transform puntoEnsamble
-        +Spawn()
-    }
-    
+
     class Produccion {
-        +Spawner spawnBase
-        +Spawner spawnPCB
+        +Spawner spawnBase, spawnPCB
         +Spawner spawnMotor1..4
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
         +IEnumerator SecuenciaEnsamblaje()
     }
-    
+
+    class Spawner {
+        +GameObject prefab
+        +Transform puntoEnsamble
+        +Spawn()
+    }
+
     class CentrarBase {
-        +float targetX
-        +float targetZ
+        +float targetX, targetZ
         +CenterOnXZ()
     }
-    
-    OrquestadorDron "1" --> "1" Brazos : alfa
-    OrquestadorDron "1" --> "1" Brazos : beta
-    OrquestadorDron "1" --> "1" Ventosa : omega
-    OrquestadorDron "1" --> "1" Ventosa : paletizador
-    Brazos "1" --> "*" EnsambleGri : interacts via GripperTrigger
-    Ventosa "1" --> "*" Ensamble : interacts via SuctionTrigger
-    Brazos "1" --> "0..1" CentrarBase : uses
-    Produccion "1" --> "*" Spawner : manages
+
+    OrquestadorDron --> Brazos : alfa / beta
+    OrquestadorDron --> Ventosa : omega / paletizador
+    Brazos --> EnsambleGri : snap via GripperTrigger
+    Ventosa --> Ensamble : snap via SuctionTrigger
+    Brazos --> CentrarBase : centers Base after release
+    Produccion --> Spawner : manages
     Spawner ..> EnsambleGri : assigns baseParent
     Spawner ..> Ensamble : assigns puntoEnsamble
 ```
@@ -1079,70 +1001,47 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 ### Diagrama de Componentes
 
 ```mermaid
-graph TB
-    subgraph "Capa de Orquestación"
+graph LR
+    subgraph ORCH["Orquestación"]
+        direction TB
         O[OrquestadorDron]
-        JSON[ensamblaje_dron.json<br/>8 Etapas]
-        P[Produccion.cs<br/>Secuenciador de Spawn]
-    end
-    
-    subgraph "Capa de Brazos Robóticos"
-        B1[Alpha<br/>Brazos — Gripper]
-        B2[Beta<br/>Brazos — Gripper]
-        B3[Omega<br/>Ventosa — Succión]
-        B4[Paletizador<br/>Ventosa — Succión]
-    end
-    
-    subgraph "Capa de Sistemas de Agarre"
-        G[GripperTrigger]
-        V[SuctionTrigger]
-        E1[Ensamble.cs]
-        E2[EnsambleGri.cs]
-    end
-    
-    subgraph "Componentes del Dron"
-        BASE[Base]
-        PCB[PCB]
-        MOTOR[Motores x4]
-        HELICE[Hélices x4]
-        TAPA[Tapa]
+        JSON[(ensamblaje_dron.json<br/>8 etapas)]
+        PROD[Produccion.cs]
+        O -- lee --> JSON
     end
 
-    subgraph "Sistema de Paletizado"
-        CARRO1[Carro 1<br/>cajas]
-        CARRO2[Carro 2<br/>cajas]
+    subgraph ASSEMBLY["Celda de Ensamblaje"]
+        direction TB
+        subgraph GRIPPERS["Brazos Gripper"]
+            B1[Alpha · Brazos]
+            B2[Beta · Brazos]
+        end
+        subgraph SUCTION["Brazo Ventosa"]
+            B3[Omega · Ventosa]
+        end
+        subgraph PARTS["Piezas del Dron"]
+            BASE[Base] --- PCB[PCB]
+            MOTOR[Motores ×4] --- HELICE[Hélices ×4]
+            TAPA[Tapa]
+        end
+        B1 & B2 -->|agarre + snap| MOTOR & HELICE
+        B1 -->|agarre + snap| BASE
+        B3 -->|ventosa + snap| PCB & TAPA
     end
-    
-    O -->|Lee JSON| JSON
-    O -->|Coordina| B1
-    O -->|Coordina| B2
-    O -->|Coordina| B3
-    O -->|Coordina| B4
-    P -->|Instancia piezas| BASE
-    P -->|Instancia piezas| PCB
-    P -->|Instancia piezas| MOTOR
-    P -->|Instancia piezas| HELICE
-    P -->|Instancia piezas| TAPA
-    
-    B1 -.->|Usa| G
-    B2 -.->|Usa| G
-    B3 -.->|Usa| V
-    B4 -.->|Usa| V
-    
-    G -->|Lógica Snap| E2
-    V -->|Lógica Snap| E1
-    
-    B1 -->|Ensambla| BASE
-    B3 -->|Ensambla| PCB
-    B1 -->|Ensambla| MOTOR
-    B2 -->|Ensambla| MOTOR
-    B1 -->|Ensambla| HELICE
-    B2 -->|Ensambla| HELICE
-    B3 -->|Ensambla| TAPA
-    B3 -->|Transfiere dron a zona| B4
-    B4 -->|Paletiza en| CARRO1
-    B4 -->|Paletiza en| CARRO2
-    
+
+    subgraph PALLET["Paletizado"]
+        direction TB
+        B4[Paletizador · Ventosa]
+        CARRO1[Carro 1]
+        CARRO2[Carro 2]
+        B4 -->|llena| CARRO1
+        B4 -.->|rota a| CARRO2
+    end
+
+    PROD -->|instancia| PARTS
+    O -->|activa| B1 & B2 & B3 & B4
+    B3 -->|transfiere dron| B4
+
     style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -1163,198 +1062,143 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant O as OrquestadorDron
-    participant A as Alpha (Brazos)
-    participant B as Beta (Brazos)
-    participant W as Omega (Ventosa)
-    participant P as Paletizador (Ventosa)
-    participant D as Dron Ensamblado
-    participant C as Carro 1 / Carro 2
+    participant O as Orquestador
+    participant A as Alpha
+    participant B as Beta
+    participant W as Omega
+    participant P as Paletizador
+    participant D as Dron
 
-    Note over O: Inicio — Carga ensamblaje_dron.json
+    rect rgb(30, 80, 60)
+        Note over O,D: Fase de Ensamblaje (< 1 min)
+        O->>A: Etapa 1 — Colocar Base
+        A->>D: agarre → suelta Base
 
-    O->>A: Etapa 1 — Colocar Base
-    activate A
-    A->>D: Agarre y suelta Base en punto de ensamble
-    A-->>O: jugandoSecuencia = false
-    deactivate A
+        O->>W: Etapa 2 — Colocar PCB
+        W->>D: ventosa → snap PCB
 
-    O->>W: Etapa 2 — Colocar PCB
-    activate W
-    W->>D: Agarre por ventosa → ensambla PCB sobre Base
-    W-->>O: jugandoSecuencia = false
-    deactivate W
+        O->>+A: Etapa 3 — Motores 1 y 3
+        O->>+B: Etapa 3 — Motores 1 y 3
+        A->>D: snap Motor
+        B->>D: snap Motor
+        deactivate A
+        deactivate B
 
-    O->>A: Etapa 3 — Motores diagonales (1 y 3)
-    O->>B: Etapa 3 — Motores diagonales (1 y 3)
-    activate A
-    activate B
-    A->>D: Ensamblar Motor (par diagonal)
-    B->>D: Ensamblar Motor (par diagonal)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>+A: Etapa 4 — Motores 2 y 4
+        O->>+B: Etapa 4 — Motores 2 y 4
+        A->>D: snap Motor
+        B->>D: snap Motor
+        deactivate A
+        deactivate B
 
-    O->>A: Etapa 4 — Motores diagonales (2 y 4)
-    O->>B: Etapa 4 — Motores diagonales (2 y 4)
-    activate A
-    activate B
-    A->>D: Ensamblar Motor (par diagonal)
-    B->>D: Ensamblar Motor (par diagonal)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>W: Etapa 5 — Colocar Tapa
+        W->>D: ventosa → snap Tapa
 
-    O->>W: Etapa 5 — Colocar Tapa
-    activate W
-    W->>D: Agarre por ventosa → ensambla Tapa (cierre final)
-    W-->>O: jugandoSecuencia = false
-    deactivate W
+        O->>+A: Etapa 6 — Hélices 1 y 3
+        O->>+B: Etapa 6 — Hélices 1 y 3
+        A->>D: snap Hélice
+        B->>D: snap Hélice
+        deactivate A
+        deactivate B
 
-    O->>A: Etapa 6 — Hélices diagonales (1 y 3)
-    O->>B: Etapa 6 — Hélices diagonales (1 y 3)
-    activate A
-    activate B
-    A->>D: Ensamblar Hélice (par diagonal)
-    B->>D: Ensamblar Hélice (par diagonal)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
+        O->>+A: Etapa 7 — Hélices 2 y 4
+        O->>+B: Etapa 7 — Hélices 2 y 4
+        A->>D: snap Hélice
+        B->>D: snap Hélice
+        deactivate A
+        deactivate B
 
-    O->>A: Etapa 7 — Hélices diagonales (2 y 4)
-    O->>B: Etapa 7 — Hélices diagonales (2 y 4)
-    activate A
-    activate B
-    A->>D: Ensamblar Hélice (par diagonal)
-    B->>D: Ensamblar Hélice (par diagonal)
-    A-->>O: jugandoSecuencia = false
-    B-->>O: jugandoSecuencia = false
-    deactivate A
-    deactivate B
-
-    O->>W: Etapa 8 — Transferir dron a zona paletizador
-    activate W
-    W->>W: Agarre por ventosa del dron completo
-    W->>D: Ubica dron en zona de paletizado
-    W-->>O: jugandoSecuencia = false
-    deactivate W
-
-    Note over O,D: Ensamblaje completo (< 1 min de ciclo) — Paletizador toma el control
-
-    loop Hasta llenar el carro activo
-        P->>D: Recoge dron de zona de paletizado
-        P->>C: Se desplaza al carro activo
-        P->>C: Ubica dron dentro de caja y cierra caja
+        O->>W: Etapa 8 — Transferir dron
+        W->>P: ubica dron en zona de paletizado
     end
 
-    Note over P,C: Carro 1 lleno → se retira de zona
-    Note over P,C: Paletizador cambia a Carro 2
-    Note over P,C: Carro 1 regresa con cajas vacías mientras se llena Carro 2
-    Note over P,C: Ciclo se repite continuamente
+    rect rgb(120, 60, 20)
+        Note over P: Fase de Paletizado (bucle paralelo)
+        loop Cada dron
+            P->>D: recoge de zona de paletizado
+            P->>P: se desplaza al carro activo
+            P->>P: ubica en caja · cierra caja
+        end
+        Note over P: Carro lleno → cambia carro → repite
+    end
 ```
 
 ### Diagrama de Interacción de Scripts
 
 ```mermaid
 classDiagram
+    direction TB
+
     class OrquestadorDron {
-        +Brazos alfa
-        +Brazos beta
-        +Ventosa omega
-        +Ventosa paletizador
+        +Brazos alfa, beta
+        +Ventosa omega, paletizador
         +string archivoMaestro
         +int etapaActual
-        +bool ensamblajeFinalizado
         +CargarMaestro()
         +EjecutarEtapa(int index)
     }
-    
+
     class Brazos {
-        +ArticulationBody Waist
-        +ArticulationBody Arm01
-        +ArticulationBody Arm02
-        +ArticulationBody Arm03
-        +ArticulationBody GripperAssembly
-        +ArticulationBody Gear1
-        +ArticulationBody Gear2
+        +ArticulationBody Waist..Gear2
         +List~RobotPose~ poses
         +bool jugandoSecuencia
-        +string saveFileName
         +IniciarSecuencia()
-        +LoadFromFile()
-        +SaveToFile()
         +AgarrarObjeto()
         +LiberarObjeto()
+        +LoadFromFile()
     }
-    
+
     class Ventosa {
-        +ArticulationBody Waist
-        +ArticulationBody Arm01
-        +ArticulationBody Arm02
-        +ArticulationBody Arm03
+        +ArticulationBody Waist..Arm03
         +bool suctionActive
-        +float suctionForce
         +List~VentosaPose~ poses
         +bool jugandoSecuencia
         +IniciarSecuencia()
-        +LoadFromFile()
         +NotifyObjectInside()
+        +LoadFromFile()
     }
-    
+
+    class EnsambleGri {
+        +Transform puntoEnsamble
+        +bool esHelice
+        +bool forzarRotacionAbsoluta
+        +Transform baseParent
+        +ConfigurarRotacionPorNumero()
+    }
+
     class Ensamble {
         +Transform puntoEnsamble
-        +float offsetHundimiento
-        +float velocidadEncaje
         +bool snapPorProximidad
-        +float distanciaActivacionSnap
         +bool congelarAlLiberar
         +Vector3 rotacionFinalEnsamble
         +NotificarLiberad()
     }
-    
-    class EnsambleGri {
-        +Transform puntoEnsamble
-        +float distanciaActivacion
-        +bool esHelice
-        +bool forzarRotacionAbsoluta
-        +Vector3 rotacionForzada
-        +bool usarRotacionPorNumero
-        +Transform baseParent
-        +ConfigurarRotacionPorNumero()
-    }
-    
-    class Spawner {
-        +GameObject prefab
-        +Transform puntoEnsamble
-        +Spawn()
-    }
-    
+
     class Produccion {
-        +Spawner spawnBase
-        +Spawner spawnPCB
+        +Spawner spawnBase, spawnPCB
         +Spawner spawnMotor1..4
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
         +IEnumerator SecuenciaEnsamblaje()
     }
-    
+
+    class Spawner {
+        +GameObject prefab
+        +Transform puntoEnsamble
+        +Spawn()
+    }
+
     class CentrarBase {
-        +float targetX
-        +float targetZ
+        +float targetX, targetZ
         +CentrarEnXZ()
     }
-    
-    OrquestadorDron "1" --> "1" Brazos : alfa
-    OrquestadorDron "1" --> "1" Brazos : beta
-    OrquestadorDron "1" --> "1" Ventosa : omega
-    OrquestadorDron "1" --> "1" Ventosa : paletizador
-    Brazos "1" --> "*" EnsambleGri : interactúa via GripperTrigger
-    Ventosa "1" --> "*" Ensamble : interactúa via SuctionTrigger
-    Brazos "1" --> "0..1" CentrarBase : usa
-    Produccion "1" --> "*" Spawner : gestiona
+
+    OrquestadorDron --> Brazos : alfa / beta
+    OrquestadorDron --> Ventosa : omega / paletizador
+    Brazos --> EnsambleGri : snap via GripperTrigger
+    Ventosa --> Ensamble : snap via SuctionTrigger
+    Brazos --> CentrarBase : centra Base al soltar
+    Produccion --> Spawner : gestiona
     Spawner ..> EnsambleGri : asigna baseParent
     Spawner ..> Ensamble : asigna puntoEnsamble
 ```
