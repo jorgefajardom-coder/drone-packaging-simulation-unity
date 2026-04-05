@@ -32,7 +32,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 ## Overview
 
-This project is a **Unity-based simulation** of a robotic drone assembly cell. It reproduces an automated production process in which three articulated robotic arms collaborate to assemble a drone through physically realistic interactions, coordinated motion sequences, and differentiated gripping mechanisms.
+This project is a **Unity-based simulation** of a robotic drone assembly cell. It reproduces an automated production process in which four articulated robotic arms collaborate to assemble a drone and palletize it into production carts, through physically realistic interactions, coordinated motion sequences, and differentiated gripping mechanisms.
 
 The simulation is intended for **virtual process validation** in technical and academic contexts.
 
@@ -106,7 +106,7 @@ graph LR
             B1[Alpha · Brazos]
             B2[Beta · Brazos]
         end
-        subgraph SUCTION["Suction Arms"]
+        subgraph OMEGA["Suction Arm"]
             B3[Omega · Ventosa]
         end
         subgraph PARTS["Drone Parts"]
@@ -121,7 +121,7 @@ graph LR
 
     subgraph PALLET["Palletizing"]
         direction TB
-        B4[Paletizador · Ventosa]
+        B4[Paletizador · Ventosa<br/>mecanum wheels]
         CARRO1[Cart 1]
         CARRO2[Cart 2]
         B4 -->|fills| CARRO1
@@ -146,7 +146,7 @@ graph LR
 | **Alpha** | `Brazos.cs` | Gripper (pinza) | Assembly — large & mechanical parts | Base, diagonal Motors x2, diagonal Hélices x2 |
 | **Beta** | `Brazos.cs` | Gripper (pinza) | Assembly — mechanical parts (paired with Alpha) | diagonal Motors x2, diagonal Hélices x2 |
 | **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | Assembly — delicate parts + drone transfer | PCB, Tapa, completed drone → staging zone |
-| **Paletizador** | `Ventosa.cs` | Suction Cup (ventosa) | Palletizing — picks drone, fills carts | Completed drones → Cart 1 / Cart 2 boxes |
+| **Paletizador** | `Ventosa.cs` | Suction Cup (ventosa) | Palletizing — picks drone, travels on mecanum wheels, fills carts | Completed drones → Cart 1 / Cart 2 boxes |
 
 ### Assembly Sequence Flow
 
@@ -537,7 +537,7 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 
 ### 8. Palletizer System (`Paletizador` — `Ventosa.cs`)
 
-The Paletizador is a fourth suction-cup arm that operates independently from the assembly sequence. Once Omega transfers the completed drone to the staging zone (Stage 8), the Paletizador picks it up and places it into a box on the active cart. This cycle is designed to complete within the same time budget as one full assembly cycle (< 1 minute), enabling seamless parallelism.
+The Paletizador is a fourth arm — unlike the other three fixed articulated arms, it moves autonomously across the floor using **mecanum wheels**, allowing omnidirectional displacement to reach any cart position. It carries a suction-cup end effector to pick up the completed drone from the staging zone and transport it to the active cart. This cycle is designed to complete within the same time budget as one full assembly cycle (< 1 minute), enabling seamless parallelism.
 
 **Dual-cart rotation logic**:
 ```
@@ -555,6 +555,7 @@ Cart 1 returns with empty boxes
 - This ensures Cart 1 is always ready again before Cart 2 is full, preventing downtime.
 
 **Key behaviors**:
+- Omnidirectional floor travel via mecanum wheels to staging zone and carts
 - Suction grip on completed drone at staging zone
 - Linear travel to active cart position
 - Place drone inside open box
@@ -1031,7 +1032,7 @@ graph LR
 
     subgraph PALLET["Paletizado"]
         direction TB
-        B4[Paletizador · Ventosa]
+        B4[Paletizador · Ventosa<br/>ruedas mecanum]
         CARRO1[Carro 1]
         CARRO2[Carro 2]
         B4 -->|llena| CARRO1
@@ -1056,7 +1057,7 @@ graph LR
 | **Alpha** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas grandes y mecánicas | Base, Motores diagonales x2, Hélices diagonales x2 |
 | **Beta** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas mecánicas (en pareja con Alpha) | Motores diagonales x2, Hélices diagonales x2 |
 | **Omega** | `Ventosa.cs` | Ventosa (succión) | Ensamble — piezas delicadas + transferencia de dron | PCB, Tapa, dron completado → zona de paletizado |
-| **Paletizador** | `Ventosa.cs` | Ventosa (succión) | Paletizado — recoge dron, llena carros | Drones completados → Cajas de Carro 1 / Carro 2 |
+| **Paletizador** | `Ventosa.cs` | Ventosa (succión) | Paletizado — recoge dron, se desplaza con ruedas mecanum, llena carros | Drones completados → Cajas de Carro 1 / Carro 2 |
 
 ### Flujo de Secuencia de Ensamblaje
 
@@ -1447,7 +1448,7 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 
 ### 8. Sistema de Paletizado (`Paletizador` — `Ventosa.cs`)
 
-El Paletizador es un cuarto brazo de ventosa que opera de forma independiente de la secuencia de ensamblaje. Una vez que Omega transfiere el dron completado a la zona de paletizado (Etapa 8), el Paletizador lo recoge y lo ubica dentro de una caja en el carro activo. Este ciclo está diseñado para completarse dentro del mismo tiempo que un ciclo de ensamblaje completo (< 1 minuto), permitiendo un paralelismo continuo sin paradas.
+El Paletizador es un cuarto brazo que, a diferencia de los otros tres brazos articulados fijos, se desplaza de forma autónoma por el suelo gracias a **ruedas mecanum**, lo que le permite movimiento omnidireccional para alcanzar cualquier posición de carro. Cuenta con un efector final de ventosa para recoger el dron completado desde la zona de paletizado y transportarlo hasta el carro activo. Este ciclo está diseñado para completarse dentro del mismo tiempo que un ciclo de ensamblaje completo (< 1 minuto), permitiendo un paralelismo continuo sin paradas.
 
 **Lógica de rotación de dos carros**:
 ```
@@ -1465,8 +1466,9 @@ Carro 1 regresa con cajas vacías
 - Esto garantiza que el Carro 1 esté siempre listo antes de que el Carro 2 se llene, evitando tiempos muertos.
 
 **Comportamientos clave**:
+- Desplazamiento omnidireccional por el suelo con ruedas mecanum hacia la zona de paletizado y los carros
 - Agarre por ventosa del dron completado en la zona de paletizado
-- Desplazamiento lineal hasta la posición del carro activo
+- Desplazamiento hasta la posición del carro activo
 - Ubicación del dron dentro de la caja abierta
 - Cierre de la caja
 - Avance al siguiente slot de caja
