@@ -12,6 +12,11 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 **English** | [Español](#simulación-de-empaquetado-de-dron--unity)
 
+<br/>
+
+![Simulation Overview](docs/simulation_overview.png)
+> *Isometric view of the robotic assembly cell — 4 articulated arms (Alpha, Beta, Omega) + Palletizer with mecanum wheels. Unity 2021.3.45f1 LTS.*
+
 </div>
 
 ---
@@ -582,6 +587,8 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 
 ```
 drone-packaging-simulation-unity/
+├── docs/
+│   └── simulation_overview.png      # Isometric view of the robotic assembly cell
 ├── Assets/
 │   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (579 lines)
 │   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (688 lines)
@@ -937,7 +944,12 @@ This repository and all its contents — including but not limited to source cod
 **Simulación de Celda de Ensamblaje Robótico**  
 Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
-[English](#-drone-packaging-simulation--unity) | **Español**
+[English](#drone-packaging-simulation--unity) | **Español**
+
+<br/>
+
+![Vista general de la simulación](docs/simulation_overview.png)
+> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega) + Paletizador con ruedas mecanum. Unity 2021.3.45f1 LTS.*
 
 </div>
 
@@ -1421,38 +1433,6 @@ Regresa a puntoInicio
 
 ---
 
-**Dos enfoques** según el tipo de pieza:
-
-| Método | Script | Trigger | Usado para |
-|--------|--------|---------|-----------|
-| **Proximidad** | `Ensamble.cs` | `snapPorProximidad` + verificación de distancia | PCB, Tapa |
-| **Colisión Trigger** | `EnsambleGri.cs` | `distanciaActivacion` | Motores, Hélices |
-
-**Animación de Snap** (Ensamble.cs):
-```csharp
-Vector3 posInicial = pieza.transform.position;
-Vector3 posFinal = puntoEnsamble.position + 
-                   puntoEnsamble.up * offsetHundimiento;
-
-float t = 0f;
-while (t < 1f) {
-    t += Time.deltaTime * velocidadEncaje;
-    pieza.transform.position = Vector3.Lerp(posInicial, posFinal, t);
-    yield return null;
-}
-
-pieza.transform.SetParent(basePrefab.transform);
-pieza.GetComponent<Rigidbody>().isKinematic = true;
-```
-
-**La rotación final del ensamble** es configurable por pieza:
-```csharp
-public Vector3 rotacionFinalEnsamble = new Vector3(-90f, 0f, 180f); // Ensamble.cs
-public Vector3 rotacionForzada       = new Vector3(-90f, 0f, 0f);   // EnsambleGri.cs
-```
-
----
-
 ### 7. Mecánicas de Snap
 
 **Dos enfoques** según el tipo de pieza:
@@ -1543,6 +1523,8 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 
 ```
 drone-packaging-simulation-unity/
+├── docs/
+│   └── simulation_overview.png      # Vista isométrica de la celda robótica de ensamblaje
 ├── Assets/
 │   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (579 líneas)
 │   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (688 líneas)
