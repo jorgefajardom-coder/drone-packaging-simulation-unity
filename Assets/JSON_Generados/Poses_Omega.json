@@ -107,6 +107,60 @@
             "gripperAssembly": 35.0,
             "suctionActive": false,
             "delay": 0.0
+        },
+        {
+            "waist": 0.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "suctionActive": false,
+            "delay": 18.0
+        },
+        {
+            "waist": 0.0,
+            "arm01": 47.0,
+            "arm02": -5.0,
+            "arm03": 0.0,
+            "gripperAssembly": 40.0,
+            "suctionActive": false,
+            "delay": 0.0
+        },
+        {
+            "waist": 0.0,
+            "arm01": 47.0,
+            "arm02": -5.0,
+            "arm03": 0.0,
+            "gripperAssembly": 40.0,
+            "suctionActive": true,
+            "delay": 0.0
+        },
+        {
+            "waist": 180.0,
+            "arm01": 0.0,
+            "arm02": 0.0,
+            "arm03": 0.0,
+            "gripperAssembly": 0.0,
+            "suctionActive": true,
+            "delay": 0.0
+        },
+        {
+            "waist": 180.0,
+            "arm01": 40.0,
+            "arm02": -10.0,
+            "arm03": 0.0,
+            "gripperAssembly": 38.0,
+            "suctionActive": true,
+            "delay": 0.0
+        },
+        {
+            "waist": 180.0,
+            "arm01": 40.0,
+            "arm02": -10.0,
+            "arm03": 0.0,
+            "gripperAssembly": 38.0,
+            "suctionActive": false,
+            "delay": 0.0
         }
     ]
 }

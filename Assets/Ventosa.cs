@@ -40,6 +40,9 @@ public class Ventosa : MonoBehaviour
     public Transform gripPoint;
     public Collider suctionTrigger;
 
+    [Header("Punto de destino para soltar")]
+    public Transform puntoDestinoDron;
+
     [Header("Configuración de liberación")]
     public float alturaLiberacion = 0.02f;
     public LayerMask capaBanda = 1;
@@ -49,6 +52,7 @@ public class Ventosa : MonoBehaviour
 
     private GameObject objectInside;
     private GameObject grabbedObject;
+    public bool TieneObjeto => grabbedObject != null;  // ← AGREGA AQUÍ
     private Vector3 originalScale;
     private Transform originalParent;
     private Rigidbody originalRigidbody;
@@ -212,46 +216,66 @@ public class Ventosa : MonoBehaviour
         }
     }
 
-    void LiberarObjeto()
+    public void LiberarObjeto()
     {
         if (grabbedObject == null) return;
-
         Debug.Log($"🔵 DESACTIVANDO SUCCIÓN: {grabbedObject.name}");
 
-        // ✅ Verificar si es una pieza que debe congelarse (tapa)
-        Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
-        bool esPiezaQueSeCongela = ensambleScript != null && ensambleScript.congelarAlLiberar;
-
-        // ✅ Solo posicionar sobre banda si NO es pieza que se congela
-        if (!esPiezaQueSeCongela)
+        // ✅ Verificar si es el dron completo
+        bool esDronCompleto = grabbedObject.name.Contains("Dron") ||
+                              grabbedObject.name == "BasePrefab(Clone)";
+        if (esDronCompleto && puntoDestinoDron != null)
         {
-            PosicionarSobreBanda();
+            Collider[] todosColliders = grabbedObject.GetComponentsInChildren<Collider>(false);
+            if (todosColliders.Length > 0)
+            {
+                Bounds boundsCompleto = todosColliders[0].bounds;
+                foreach (Collider c in todosColliders)
+                    boundsCompleto.Encapsulate(c.bounds);
+                // Distancia del pivote al punto más bajo del modelo
+                float offsetPivoteBase = grabbedObject.transform.position.y - boundsCompleto.min.y;
+                // Colocar de modo que la BASE quede exactamente sobre la mesa
+                grabbedObject.transform.position = new Vector3(
+                    puntoDestinoDron.position.x,
+                    puntoDestinoDron.position.y + offsetPivoteBase,
+                    puntoDestinoDron.position.z
+                );
+                Debug.Log($"🎯 Dron sobre mesa. Offset pivote→base: {offsetPivoteBase:F4}m | Bounds min Y: {boundsCompleto.min.y:F4}");
+            }
+            else
+            {
+                // Fallback si no hay colliders
+                grabbedObject.transform.position = puntoDestinoDron.position;
+            }
         }
-        else
-        {
-            Debug.Log($"📌 Pieza con congelamiento activado ({grabbedObject.name}), saltando PosicionarSobreBanda()");
-        }
-
         grabbedObject.transform.SetParent(originalParent);
         grabbedObject.transform.localScale = originalScale;
-
         if (originalRigidbody != null)
         {
-            originalRigidbody.isKinematic = wasKinematic;
-            originalRigidbody.useGravity = usedGravity;
+            // ✅ FIX — forzar física real si es dron completo, evita que quede flotando
+            if (esDronCompleto)
+            {
+                originalRigidbody.isKinematic = false;
+                originalRigidbody.useGravity = true;
+            }
+            else
+            {
+                originalRigidbody.isKinematic = wasKinematic;
+                originalRigidbody.useGravity = usedGravity;
+            }
             originalRigidbody.velocity = Vector3.zero;
             originalRigidbody.angularVelocity = Vector3.zero;
+            originalRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             originalRigidbody.WakeUp();
-        }
 
+
+        }
         // ✅ Notifica al script de ensamble que fue liberada
         grabbedObject.GetComponent<Ensamble>()?.NotificarLiberad();
-
         grabbedObject = null;
         objectInside = null;
         originalParent = null;
         originalRigidbody = null;
-
         Debug.Log("✅ OBJETO LIBERADO - SUCCIÓN DESACTIVADA");
     }
 
@@ -439,9 +463,13 @@ public class Ventosa : MonoBehaviour
             Debug.Log(suctionActive ? "🔄 SUCCIÓN ACTIVADA (secuencia)" : "🔄 SUCCIÓN DESACTIVADA (secuencia)");
         }
 
-        if (p.suctionActive && grabbedObject == null && objectInside != null)
+        if (p.suctionActive && grabbedObject == null)
         {
-            AgarrarObjetoConSuccion();
+            if (objectInside != null)
+                AgarrarObjetoConSuccion();
+
+            // ⛔ No avanzar hasta confirmar agarre real
+            return;
         }
         else if (!p.suctionActive && grabbedObject != null)
         {

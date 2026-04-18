@@ -121,6 +121,7 @@ public class EnsambleGri : MonoBehaviour
                 Time.deltaTime * 180f   // 180°/s — ajusta si necesitas más lento/rápido
             );
 
+            // Reemplaza este bloque al finalizar el encaje:
             if (Vector3.Distance(transform.position, posicionFinal) < 0.0005f)
             {
                 transform.position = posicionFinal;
@@ -130,20 +131,13 @@ public class EnsambleGri : MonoBehaviour
                 encajando = false;
 
                 if (collidersAIgnorar != null)
-                {
                     foreach (var c in collidersAIgnorar)
-                    {
-                        if (c != null)
-                            Physics.IgnoreCollision(col, c, false);
-                    }
-                }
-
-                if (col != null) col.enabled = true;
+                        if (c != null) Physics.IgnoreCollision(col, c, false);
 
                 if (baseParent != null)
                     transform.SetParent(baseParent);
 
-                Debug.Log($"✅ Ensamblado: {gameObject.name} → pos: {transform.position}, rot: {transform.rotation.eulerAngles}");
+                Debug.Log($"✅ Ensamblado: {gameObject.name}");
             }
         }
     }

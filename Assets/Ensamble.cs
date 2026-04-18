@@ -42,19 +42,19 @@ public class Ensamble : MonoBehaviour
         fueLiberad = true;
         Debug.Log($"📦 {gameObject.name} liberada, lista para encajar.");
 
-        // ✅ Para piezas que van ENCIMA (Tapa):
-        // tomar control kinematic inmediatamente al soltarse
-        // evita la caída brusca antes de que el snap tome control
         if (congelarAlLiberar && rb != null)
         {
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
             rb.useGravity = false;
             rb.isKinematic = true;
+
+            if (col != null) col.enabled = false;
+
             Debug.Log($"🧊 {gameObject.name} congelada en el aire, iniciando snap directo.");
 
             posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
-            baseParent = GameObject.Find("BasePrefab")?.transform;
+            baseParent = GameObject.Find("BasePrefab(Clone)")?.transform;
             encajando = true;
 
             if (col != null) col.enabled = false;
@@ -134,8 +134,6 @@ public class Ensamble : MonoBehaviour
                 transform.rotation = Quaternion.Euler(rotacionFinalEnsamble);
                 encajado = true;
                 encajando = false;
-
-                if (col != null) col.enabled = true;
 
                 if (baseParent != null)
                     transform.SetParent(baseParent);
