@@ -19,6 +19,15 @@ public class Spawner : MonoBehaviour
         if (encajeGri != null)
             encajeGri.baseParent = GameObject.Find("BasePrefab(Clone)").transform;
 
+        // ✅ NUEVO: conectar HingeJoint de la tapa al Rigidbody de la caja
+        HingeJoint hinge = pieza.GetComponentInChildren<HingeJoint>();
+        if (hinge != null)
+        {
+            Rigidbody rbCaja = pieza.GetComponent<Rigidbody>();
+            if (rbCaja != null)
+                hinge.connectedBody = rbCaja;
+        }
+
         return pieza;
     }
 }
