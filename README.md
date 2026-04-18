@@ -15,7 +15,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 <br/>
 
 ![Simulation Overview](docs/simulation_overview.png)
-> *Isometric view of the robotic assembly cell — 4 articulated arms (Alpha, Beta, Omega) + Palletizer with mecanum wheels. Unity 2021.3.45f1 LTS.*
+> *Isometric view of the robotic assembly cell — 4 articulated arms (Alpha, Beta, Omega) + Palletizer with mecanum wheels.*
 
 </div>
 
