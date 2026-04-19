@@ -15,7 +15,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 <br/>
 
 ![Simulation Overview](docs/simulation_overview.png)
-> *Isometric view of the robotic assembly cell — 4 articulated arms (Alpha, Beta, Omega) + Palletizer with mecanum wheels.*
+> *Isometric view of the robotic assembly cell — 4 articulated arms (Alpha, Beta, Omega, Paletizador) with mecanum wheels.*
 
 </div>
 
@@ -37,21 +37,22 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 ## Overview
 
-This project is a **Unity-based simulation** of a robotic drone assembly and palletizing cell. Four robotic arms collaborate to assemble a drone through physically realistic interactions, JSON-driven motion sequences, and differentiated gripping mechanisms. The completed drone is then transported and palletized into production carts by a fourth arm that moves autonomously on **mecanum wheels**.
+This project is a **Unity-based simulation** of a robotic drone assembly and palletizing cell. Four robotic arms collaborate to assemble a drone through physically realistic interactions and JSON-driven motion sequences. The completed drone is then transported and palletized into production carts by a fourth arm that moves autonomously on **mecanum wheels**.
 
-The simulation is intended for **virtual process validation** in technical and academic contexts.
+The simulation is intended for **virtual process validation** in technical and academic contexts. It integrates with a **CODESYS PLC project** and a **FluidSim OPC simulation** that model the industrial automation layer.
 
 ### Key Features
 
 - 🦾 **Four coordinated robotic arms** (Alpha, Beta, Omega, Paletizador) with ArticulationBody physics
-- 🔄 **JSON-driven motion** — each arm reads its own pose file; no central orchestrator
+- 🔄 **Decentralized JSON-driven motion** — each arm reads its own pose file and executes independently
 - ⚙️ **Dual end effectors**: Gripper (`Brazos.cs`) and Suction Cup (`Ventosa.cs`)
 - 🎯 **Proximity-based snap system** for component assembly
 - 📊 **Coroutine-based asynchronous execution** with dependency management
 - 🔧 **World-space preservation** to prevent rotation artifacts
-- 🏭 **Production spawner** with staggered coroutine-based part instantiation
+- 🏭 **Production spawner** with staggered coroutine-based part instantiation, including box spawning
 - 📦 **Paletizador** — mecanum-wheel arm + `CarroPaletizador.cs` navigation system
 - 🚁 **DronListo.cs** — unifies all drone parts into a single rigidbody unit before pickup
+- 🖥️ **CODESYS / FluidSim integration** — PLC and OPC simulation files included in the repository
 
 ---
 
@@ -82,13 +83,18 @@ Physics.IgnoreCollision // Dynamic collision control
 ### Package Dependencies (`manifest.json`)
 
 | Package | Version | Purpose |
-|---------|---------|---------|
+|---------|---------|---------| 
 | `com.unity.formats.fbx` | 4.1.3 | Asset export for external workflows |
 | `com.unity.textmeshpro` | 3.0.6 | UI text rendering |
 | `com.unity.timeline` | 1.6.5 | Animation timeline support |
 | `com.unity.visualscripting` | 1.9.4 | Visual scripting support |
 | `com.unity.collab-proxy` | 2.5.2 | Version control integration |
 | `com.unity.test-framework` | 1.1.33 | Unit testing |
+| `com.unity.feature.development` | 1.0.1 | Development tools bundle |
+| `com.unity.ide.rider` | 3.0.31 | Rider IDE integration |
+| `com.unity.ide.visualstudio` | 2.0.22 | Visual Studio integration |
+| `com.unity.ide.vscode` | 1.2.5 | VS Code integration |
+| `com.unity.ugui` | 1.0.0 | Legacy UI system |
 
 ---
 
@@ -97,125 +103,106 @@ Physics.IgnoreCollision // Dynamic collision control
 ### Component Diagram
 
 ```mermaid
-graph LR
-    subgraph ORCH["Orchestration"]
-        direction TB
-        O[OrquestadorDron]
-        JSON[(ensamblaje_dron.json<br/>8 stages)]
-        PROD[Produccion.cs]
-        O -- reads --> JSON
+graph TB
+    subgraph EXT["Industrial Automation Layer"]
+        direction LR
+        PLC[CODESYS PLC<br/>Codesys_Simulation.project]
+        OPC[FluidSim OPC<br/>OPC SIMULATION.ct]
+    end
+
+    subgraph PROD["Production"]
+        P[Produccion.cs] -->|staggered spawn| SP[Spawners — parts + boxes]
+    end
+
+    subgraph JSON["Motion Data"]
+        JF[(JSON_Generados/<br/>12 pose files)]
     end
 
     subgraph ASSEMBLY["Assembly Cell"]
-        direction TB
-        subgraph GRIPPERS["Gripper Arms"]
-            B1[Alpha · Brazos]
-            B2[Beta · Brazos]
-        end
-        subgraph OMEGA["Suction Arm"]
-            B3[Omega · Ventosa]
-        end
-        subgraph PARTS["Drone Parts"]
-            BASE[Base] --- PCB[PCB]
-            MOTOR[Motors ×4] --- HELICE[Hélices ×4]
-            TAPA[Tapa]
-        end
-        B1 & B2 -->|grip + snap| MOTOR & HELICE
-        B1 -->|grip + snap| BASE
-        B3 -->|suction + snap| PCB & TAPA
+        B1[Alpha · Brazos<br/>Base]
+        B2[Beta · Brazos<br/>Motors ×4 + Hélices ×4]
+        B3[Omega · Ventosa<br/>PCB + Tapa + transfer]
     end
 
     subgraph PALLET["Palletizing"]
-        direction TB
-        B4[Paletizador · Ventosa<br/>mecanum wheels]
-        CARRO1[Cart 1]
-        CARRO2[Cart 2]
-        B4 -->|fills| CARRO1
-        B4 -.->|rotates to| CARRO2
+        CARRO[CarroPaletizador.cs] -->|drives| B4[Paletizador · Ventosa<br/>mecanum wheels]
+        B4 -->|fills| C1[Cart 1]
+        B4 -.->|swaps to| C2[Cart 2]
     end
 
-    PROD -->|spawns| PARTS
-    O -->|triggers| B1 & B2 & B3 & B4
+    SP -->|instantiates| ASSEMBLY
+    B1 & B2 & B3 & B4 -. read .-> JF
     B3 -->|transfers drone| B4
+    EXT -.->|signals| ASSEMBLY
 
-    style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
     style B4 fill:#B75A34,stroke:#5C2506,color:#fff
+    style CARRO fill:#534AB7,stroke:#26215C,color:#fff
+    style PLC fill:#534AB7,stroke:#26215C,color:#fff
+    style OPC fill:#534AB7,stroke:#26215C,color:#fff
 ```
 
 ### Arm Configuration
 
 | Arm | Class | End Effector | Status | Components Handled |
 |-----|-------|-------------|--------|-------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Base, diagonal Motors x2 |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | diagonal Motors x2 |
-| **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | ✅ Implemented | PCB, Tapa *(poses exist)* |
-| **Paletizador** | `Ventosa.cs` + mecanum wheels | Suction Cup (ventosa) | 🔧 In progress | Completed drones → Cart 1 / Cart 2 |
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Base |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Motors ×4, Hélices ×4 |
+| **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | ✅ Implemented | PCB, Tapa, drone transfer |
+| **Paletizador** | `Ventosa.cs` + mecanum wheels | Suction Cup (ventosa) | ✅ Implemented | Completed drones → Cart 1 / Cart 2 |
 
 ### Assembly Sequence Flow
 
 ```mermaid
 sequenceDiagram
-    participant O as Orchestrator
-    participant A as Alpha
-    participant B as Beta
-    participant W as Omega
-    participant P as Paletizador
+    participant P as Produccion
+    participant A as Alpha (Brazos)
+    participant B as Beta (Brazos)
+    participant W as Omega (Ventosa)
+    participant PAL as Paletizador
     participant D as Drone
 
     rect rgb(30, 80, 60)
-        Note over O,D: Assembly Phase (< 1 min)
-        O->>A: Stage 1 — Place Base
-        A->>D: grip → release Base
+        Note over P,D: Phase 1 — Spawning (staggered 2s delays)
+        P->>D: spawn Base → PCB → Motors → Hélices → Tapa → Boxes
+    end
 
-        O->>W: Stage 2 — Place PCB
-        W->>D: suction → snap PCB
+    rect rgb(25, 60, 90)
+        Note over A,D: Phase 2 — Assembly (each arm reads its own JSON)
+        A->>D: grip + place Base
+        Note right of A: CentrarBase.IniciarCentrado()
+        W->>D: suction + snap PCB
 
-        O->>+A: Stage 3 — Motors 1 & 3
-        O->>+B: Stage 3 — Motors 1 & 3
-        A->>D: snap Motor
-        B->>D: snap Motor
-        deactivate A
-        deactivate B
+        par Beta places all 4 motors
+            B->>D: snap Motor 1
+            B->>D: snap Motor 2
+            B->>D: snap Motor 3
+            B->>D: snap Motor 4
+        end
 
-        O->>+A: Stage 4 — Motors 2 & 4
-        O->>+B: Stage 4 — Motors 2 & 4
-        A->>D: snap Motor
-        B->>D: snap Motor
-        deactivate A
-        deactivate B
+        W->>D: suction + snap Tapa
 
-        O->>W: Stage 5 — Place Tapa
-        W->>D: suction → snap Tapa
+        par Beta places all 4 hélices
+            B->>D: snap Hélice 1
+            B->>D: snap Hélice 2
+            B->>D: snap Hélice 3
+            B->>D: snap Hélice 4
+        end
 
-        O->>+A: Stage 6 — Hélices 1 & 3
-        O->>+B: Stage 6 — Hélices 1 & 3
-        A->>D: snap Hélice
-        B->>D: snap Hélice
-        deactivate A
-        deactivate B
-
-        O->>+A: Stage 7 — Hélices 2 & 4
-        O->>+B: Stage 7 — Hélices 2 & 4
-        A->>D: snap Hélice
-        B->>D: snap Hélice
-        deactivate A
-        deactivate B
-
-        O->>W: Stage 8 — Transfer drone
-        W->>P: place drone in staging zone
+        Note over D: DronListo.PrepararParaLevantamiento()
+        W->>PAL: transfer drone to staging zone
     end
 
     rect rgb(120, 60, 20)
-        Note over P: Palletizing Phase (parallel loop)
-        loop Each drone
-            P->>D: pick from staging zone
-            P->>P: move to active cart
-            P->>P: place in box · close box
+        Note over PAL: Phase 3 — Palletizing (CarroPaletizador loop)
+        loop Cart 1 → Cart 2 (2 slots × 2 drones each)
+            PAL->>D: pick from staging zone
+            PAL->>PAL: IrA(puntoGiro) → IrA(destino)
+            PAL->>PAL: deposit in box
         end
-        Note over P: Cart full → swap cart → repeat
+        PAL->>PAL: IrA(puntoInicio)
     end
 ```
 
@@ -225,47 +212,73 @@ sequenceDiagram
 classDiagram
     direction TB
 
-    class OrquestadorDron {
-        +Brazos alfa, beta
-        +Ventosa omega, paletizador
-        +string archivoMaestro
-        +int etapaActual
-        +CargarMaestro()
-        +EjecutarEtapa(int index)
-    }
-
     class Brazos {
         +ArticulationBody Waist..Gear2
         +List~RobotPose~ poses
         +bool jugandoSecuencia
+        +string saveFileName
+        +float speed
+        +CentrarBase scriptCentrarBase
         +IniciarSecuencia()
-        +AgarrarObjeto()
-        +LiberarObjeto()
+        +IniciarSecuenciaConEspera()
         +LoadFromFile()
+        +NotifyObjectInside(GameObject)
+        +NotifyObjectExit(GameObject)
+        -AgarrarObjeto()
+        -LiberarObjeto()
     }
 
     class Ventosa {
-        +ArticulationBody Waist..Arm03
+        +ArticulationBody Waist..GripperAssembly
         +bool suctionActive
+        +float suctionForce
         +List~VentosaPose~ poses
         +bool jugandoSecuencia
+        +string saveFileName
+        +bool TieneObjeto
+        +Transform puntoDestinoDron
+        +Vector3 rotacionFijaAlAgarrar
         +IniciarSecuencia()
-        +NotifyObjectInside()
+        +IniciarSecuenciaConEspera()
         +LoadFromFile()
+        +NotifyObjectInside(GameObject)
+        +LiberarObjeto()
+    }
+
+    class CarroPaletizador {
+        +Transform puntoInicio, puntoGiro
+        +Transform punto_1_1..punto_2_2
+        +Ventosa ventosa
+        +float velocidadMovimiento
+        +float velocidadRotacion
+        -SecuenciaCompleta()
+        -EsperarAgarreYNavegar(Transform)
+        -SoltarYEsperar()
+        -IrA(Transform)
+    }
+
+    class DronListo {
+        +bool dronesListo
+        +PrepararParaLevantamiento()
+        +SoltarDron()
     }
 
     class EnsambleGri {
         +Transform puntoEnsamble
+        +Transform baseParent
         +bool esHelice
         +bool forzarRotacionAbsoluta
-        +Transform baseParent
-        +ConfigurarRotacionPorNumero()
+        +bool usarRotacionPorNumero
+        +Vector3 rotacionForzada
+        +NotificarLiberad(Collider[])
+        -ConfigurarRotacionPorNumero(string)
     }
 
     class Ensamble {
         +Transform puntoEnsamble
         +bool snapPorProximidad
         +bool congelarAlLiberar
+        +float distanciaActivacionSnap
         +Vector3 rotacionFinalEnsamble
         +NotificarLiberad()
     }
@@ -275,28 +288,40 @@ classDiagram
         +Spawner spawnMotor1..4
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
+        +Spawner[] spawnsCaja
         +IEnumerator SecuenciaEnsamblaje()
     }
 
     class Spawner {
         +GameObject prefab
         +Transform puntoEnsamble
-        +Spawn()
+        +GameObject Spawn()
     }
 
     class CentrarBase {
-        +float targetX, targetZ
-        +CenterOnXZ()
+        +Transform puntoDestino
+        +Vector3 rotacionFija
+        +IniciarCentrado()
     }
 
-    OrquestadorDron --> Brazos : alfa / beta
-    OrquestadorDron --> Ventosa : omega / paletizador
-    Brazos --> EnsambleGri : snap via GripperTrigger
-    Ventosa --> Ensamble : snap via SuctionTrigger
+    class GripperTrigger {
+        +Brazos mainScript
+    }
+
+    class SuctionTrigger {
+        +Ventosa mainScript
+    }
+
+    CarroPaletizador --> Ventosa : drives paletizador
+    GripperTrigger --> Brazos : OnTriggerEnter
+    SuctionTrigger --> Ventosa : OnTriggerEnter
+    Brazos --> EnsambleGri : snap on grip
+    Ventosa --> Ensamble : snap on suction
     Brazos --> CentrarBase : centers Base after release
     Produccion --> Spawner : manages
     Spawner ..> EnsambleGri : assigns baseParent
     Spawner ..> Ensamble : assigns puntoEnsamble
+    DronListo ..> Brazos : scene reference
 ```
 
 ---
@@ -343,7 +368,7 @@ public ArticulationBody Gear2;           // X Drive (mirror of Gear1)
 
 ### 2. Suction Cup System (`Ventosa.cs`)
 
-**Behavior**: Magnetic attraction animation before attachment. Omega is the arm that handles the PCB and Tapa (lid).
+**Behavior**: Magnetic attraction animation before attachment. Omega handles the PCB, Tapa, and full drone transfer to the palletizing zone. The Paletizador uses the same class to pick up and transport completed drones.
 
 **Implementation**:
 ```csharp
@@ -371,7 +396,7 @@ void OnTriggerEnter(Collider other) {
 
 ### 3. JSON Motion Sequencer
 
-Each arm's movement is defined in external JSON files under `Assets/JSON_Generados/` and loaded at runtime from `StreamingAssets/`. Each file stores a list of `RobotPose` objects with full joint targets.
+Each arm's movement is defined in external JSON files under `Assets/JSON_Generados/` and loaded at runtime. Each file stores a list of `RobotPose` objects with full joint targets.
 
 **Real pose data structure** (`RobotPose`):
 ```json
@@ -394,26 +419,26 @@ Each arm's movement is defined in external JSON files under `Assets/JSON_Generad
 
 **Available JSON files** (12 total):
 
-| File | Arm | Description |
-|------|-----|-------------|
-| `Poses_BaseNueva.json` | Alpha | Place drone base (6 poses) |
-| `Poses_PCB.json` | Omega | Place PCB with suction |
-| `Poses_Motor1.json` | Alpha | Diagonal motor 1 (6 poses) |
-| `Poses_Motor2.json` | Alpha | Diagonal motor 2 (6 poses) |
-| `Poses_Motor3.json` | Beta | Diagonal motor 3 |
-| `Poses_Motor4.json` | Beta | Diagonal motor 4 |
-| `Poses_Tapa.json` | Omega | Place lid (final closure) |
-| `Poses_Alpha.json` | Alpha | Alpha alternate sequence |
-| `Poses_Beta.json` | Beta | Beta alternate sequence |
-| `Poses_Omega.json` | Omega | Omega alternate sequence |
-| `Poses_Palet.json` | Paletizador | Palletizing / cart movement sequence |
-| `poses2_cubo.json` | — | Test/debug sequence |
+| File | Arm | Poses | Description |
+|------|-----|-------|-------------|
+| `Poses_BaseNueva.json` | Alpha | 6 | Place drone base |
+| `Poses_PCB.json` | Omega | 7 | Place PCB with suction |
+| `Poses_Motor1.json` | Beta | 6 | Motor 1 |
+| `Poses_Motor2.json` | Beta | 4 | Motor 2 |
+| `Poses_Motor3.json` | Beta | 6 | Motor 3 |
+| `Poses_Motor4.json` | Beta | 4 | Motor 4 |
+| `Poses_Tapa.json` | Omega | 5 | Place lid (final closure) |
+| `Poses_Alpha.json` | Alpha | 29 | Full Alpha sequence |
+| `Poses_Beta.json` | Beta | 24 | Full Beta sequence |
+| `Poses_Omega.json` | Omega | 18 | Full Omega sequence (includes drone transfer) |
+| `Poses_Palet.json` | Paletizador | 3 | Paletizador grip sequence |
+| `poses2_cubo.json` | — | 1 | Test/debug sequence |
 
 ---
 
 ### 4. Decentralized Motion Architecture
 
-The central orchestrator (`OrquestadorDron.cs`) was **removed** from the active scene. Motion coordination is now fully decentralized: each arm reads and executes its own JSON pose file independently. The four arms operate in sequence by design of their respective JSON files, without a master coordinator polling their state.
+Motion coordination is fully decentralized: each arm reads and executes its own JSON pose file independently via `LoadFromFile()` on `Awake` and `IniciarSecuencia()` on `Start` or external trigger. The four arms operate in sequence by design of their respective JSON files.
 
 **Motion flow per arm**:
 ```
@@ -499,6 +524,8 @@ Return to puntoInicio
 
 ---
 
+### 7. Snap Mechanics
+
 **Two approaches** depending on piece type:
 
 | Method | Script | Trigger | Used For |
@@ -531,7 +558,7 @@ public Vector3 rotacionForzada       = new Vector3(-90f, 0f, 0f);   // EnsambleG
 
 ---
 
-### 7. Race Condition Prevention
+### 8. Race Condition Prevention
 
 **Problem**: `PlaySequence()` and `ReleaseInSequence()` ran in parallel.
 
@@ -557,9 +584,9 @@ IEnumerator ReproducirSecuencia() {
 
 ---
 
-### 8. Production Spawner (`Produccion.cs`)
+### 9. Production Spawner (`Produccion.cs`)
 
-Parts are not pre-placed in the scene — they are instantiated at runtime by `Produccion.cs` using individual `Spawner` components, with staggered 2-second delays.
+Parts are not pre-placed in the scene — they are instantiated at runtime by `Produccion.cs` using individual `Spawner` components. Parts are spawned with staggered 2-second delays; boxes for the palletizer are all spawned simultaneously at the end.
 
 ```csharp
 IEnumerator SecuenciaEnsamblaje() {
@@ -576,10 +603,14 @@ IEnumerator SecuenciaEnsamblaje() {
     spawnHelice3.Spawn(); spawnHelice4.Spawn();
     yield return new WaitForSeconds(2);
     spawnTapa.Spawn();
+    yield return new WaitForSeconds(2);
+    // All boxes at once
+    foreach (Spawner sc in spawnsCaja)
+        sc.Spawn();
 }
 ```
 
-Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParent` (for `EnsambleGri`) on the instantiated prefab.
+Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParent` (for `EnsambleGri`) on the instantiated prefab. For box prefabs, it additionally wires the `HingeJoint.connectedBody` to the box's own `Rigidbody`, enabling the lid hinge to function correctly.
 
 ---
 
@@ -589,6 +620,14 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 drone-packaging-simulation-unity/
 ├── docs/
 │   └── simulation_overview.png      # Isometric view of the robotic assembly cell
+├── CODESYS/                         # PLC project (CODESYS runtime)
+│   ├── Codesys_Simulation.project   # Main CODESYS project file
+│   ├── Codesys_Simulation.Device.Application.*.bootinfo
+│   ├── Codesys_Simulation.Device.Application.*.compileinfo
+│   ├── Codesys_Simulation.Device.Application.xml
+│   └── Codesys_Simulation-*.opt     # User/machine options
+├── Fluidsim/                        # OPC simulation for FluidSim
+│   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
 │   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (579 lines)
 │   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (688 lines)
@@ -598,18 +637,15 @@ drone-packaging-simulation-unity/
 │   ├── EnsambleGri.cs               # Snap logic for Motors / Hélices (174 lines)
 │   ├── Spawner.cs                   # Instantiates prefabs and assigns assembly refs (32 lines)
 │   ├── Produccion.cs                # Staggered coroutine spawn sequencer (56 lines)
-│   ├── Angulos.cs                   # Manual joint angle controller (debug/test)
-│   ├── CentrarBase.cs               # Centers Base on XZ after placement
+│   ├── Angulos.cs                   # Manual joint angle controller (debug/test) (63 lines)
+│   ├── CentrarBase.cs               # Centers Base on target Transform after release (91 lines)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Moves cart between waypoints
-│   ├── OrquestadorDron.cs           # Kept in Assets but removed from scene
+│   ├── MoverCajon.cs                # Moves cart along a waypoint array
 │   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
 │   ├── New Animator Controller.*
-│   ├── StreamingAssets/
-│   │   └── ensamblaje_dron.json     # Master JSON (legacy — not used in current scene)
 │   ├── JSON_Generados/              # 12 pose JSON files — each arm reads its own
 │   └── Scenes/
 │       └── SampleScene.unity
@@ -628,6 +664,7 @@ drone-packaging-simulation-unity/
 - **Unity 2021.3.45f1 LTS** (installable from Unity Hub)
 - **Git** (to clone the repository)
 - **OS**: Windows 10/11, macOS 10.15+, or Ubuntu 20.04+
+- **CODESYS** (optional) — to run the PLC simulation layer
 
 ### Installation Steps
 
@@ -652,6 +689,10 @@ drone-packaging-simulation-unity/
    - Each arm loads its own JSON file automatically from `Assets/JSON_Generados/`
    - The file for each arm is assigned in the Inspector of the `Brazos` or `Ventosa` component via the `saveFileName` field
    - Paletizador waypoints are assigned in the `CarroPaletizador` Inspector
+
+5. **CODESYS / FluidSim** (optional)
+   - Open `CODESYS/Codesys_Simulation.project` with CODESYS v3.5+
+   - The OPC simulation file for FluidSim is located at `Fluidsim/OPC SIMULATION FLUIDSIM.ct`
 
 ---
 
@@ -767,25 +808,24 @@ IEnumerator PlaySequence() {
 
 **Solution**:
 ```csharp
-// In EnsambleGri.cs
-if (esHelice && forzarRotacionAbsoluta) {
-    Quaternion rotacionObjetivo = Quaternion.identity;
-    
-    switch (numeroHelice) {
-        case 1: rotacionObjetivo = Quaternion.Euler(-90, 0, 0); break;
-        case 2: rotacionObjetivo = Quaternion.Euler(-90, 90, 0); break;
-        case 3: rotacionObjetivo = Quaternion.Euler(-90, 180, 0); break;
-        case 4: rotacionObjetivo = Quaternion.Euler(-90, 270, 0); break;
+// In EnsambleGri.cs — uses object name matching via ConfigurarRotacionPorNumero()
+if (esHelice && usarRotacionPorNumero) {
+    if (nombreLimpio.Contains("Helice1")) {
+        rotacionForzada = new Vector3(90f, 0f, 0f);
+    } else if (nombreLimpio.Contains("Helice2")) {
+        rotacionForzada = new Vector3(-90f, 90f, 0f);
+    } else if (nombreLimpio.Contains("Helice3")) {
+        rotacionForzada = new Vector3(-90f, 180f, 0f);
+    } else if (nombreLimpio.Contains("Helice4")) {
+        rotacionForzada = new Vector3(90f, 270f, 0f);
     }
-    
-    transform.rotation = rotacionObjetivo;
 }
 ```
 
 **Inspector Configuration**:
 - `Es Helice`: ✅
 - `Forzar Rotacion Absoluta`: ✅
-- `Numero Helice`: 1-4 (assigned by spawner)
+- `Usar Rotacion Por Numero`: ✅ (auto-detects hélice number from prefab name)
 
 ---
 
@@ -906,8 +946,9 @@ body.xDrive = drive;
 
 ```
 "Pickable" — All graspable drone parts (Base, PCB, Motors, Hélices, Tapa)
-"PCB"      — PCB-specific tag for specialized handling
 ```
+
+> **Note**: All graspable parts share the single `"Pickable"` tag. The scripts differentiate piece types by their attached component (`Ensamble` for suction pieces, `EnsambleGri` for gripper pieces) and by prefab name matching.
 
 ---
 
@@ -922,7 +963,7 @@ body.xDrive = drive;
 
 **Copyright © 2025 Jorge Andres Fajardo Mora and Laura Vanesa Castro Sierra. All rights reserved.**
 
-This repository and all its contents — including but not limited to source code, scripts, configuration files, data files, and documentation — are provided for **read-only and reference purposes only**. 
+This repository and all its contents — including but not limited to source code, scripts, configuration files, data files, and documentation — are provided for **read-only and reference purposes only**.
 
 **No permission is granted** to copy, modify, distribute, sublicense, or use any part of this project for commercial or non-commercial purposes without **explicit written authorization** from the authors.
 
@@ -949,7 +990,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 <br/>
 
 ![Vista general de la simulación](docs/simulation_overview.png)
-> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega) + Paletizador con ruedas mecanum. Unity 2021.3.45f1 LTS.*
+> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum. Unity 2021.3.45f1 LTS.*
 
 </div>
 
@@ -973,19 +1014,20 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
 Este proyecto es una **simulación basada en Unity** de una celda robótica de ensamblaje y paletizado de drones. Cuatro brazos robóticos colaboran para ensamblar un dron mediante interacciones físicas realistas y secuencias de movimiento impulsadas por JSON. El dron completado es luego transportado y paletizado en carros de producción por un cuarto brazo que se desplaza autónomamente con **ruedas mecanum**.
 
-La simulación está orientada a la **validación virtual de procesos** en contextos técnicos y académicos.
+La simulación está orientada a la **validación virtual de procesos** en contextos técnicos y académicos. Se integra con un **proyecto PLC de CODESYS** y una **simulación OPC de FluidSim** que modelan la capa de automatización industrial.
 
 ### Características Clave
 
 - 🦾 **Cuatro brazos robóticos coordinados** (Alpha, Beta, Omega, Paletizador) con física ArticulationBody
-- 🔄 **Movimiento impulsado por JSON** — cada brazo lee su propio archivo de poses; sin orquestador central
+- 🔄 **Movimiento descentralizado impulsado por JSON** — cada brazo lee su propio archivo de poses y se ejecuta de forma independiente
 - ⚙️ **Efectores finales duales**: Gripper (`Brazos.cs`) y Ventosa (`Ventosa.cs`)
 - 🎯 **Sistema de snap por proximidad** para ensamblaje de componentes
 - 📊 **Ejecución asíncrona basada en coroutines** con gestión de dependencias
 - 🔧 **Preservación de world-space** para prevenir artefactos de rotación
-- 🏭 **Spawner de producción** con instanciación escalonada de piezas
+- 🏭 **Spawner de producción** con instanciación escalonada de piezas y cajas
 - 📦 **Paletizador** — brazo con ruedas mecanum + sistema de navegación `CarroPaletizador.cs`
 - 🚁 **DronListo.cs** — unifica todas las piezas del dron en una sola unidad rígida antes del levantamiento
+- 🖥️ **Integración CODESYS / FluidSim** — archivos de simulación PLC y OPC incluidos en el repositorio
 
 ---
 
@@ -1023,6 +1065,11 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 | `com.unity.visualscripting` | 1.9.4 | Soporte de scripting visual |
 | `com.unity.collab-proxy` | 2.5.2 | Integración de control de versiones |
 | `com.unity.test-framework` | 1.1.33 | Testing unitario |
+| `com.unity.feature.development` | 1.0.1 | Paquete de herramientas de desarrollo |
+| `com.unity.ide.rider` | 3.0.31 | Integración con Rider IDE |
+| `com.unity.ide.visualstudio` | 2.0.22 | Integración con Visual Studio |
+| `com.unity.ide.vscode` | 1.2.5 | Integración con VS Code |
+| `com.unity.ugui` | 1.0.0 | Sistema de UI legacy |
 
 ---
 
@@ -1031,125 +1078,106 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 ### Diagrama de Componentes
 
 ```mermaid
-graph LR
-    subgraph ORCH["Orquestación"]
-        direction TB
-        O[OrquestadorDron]
-        JSON[(ensamblaje_dron.json<br/>8 etapas)]
-        PROD[Produccion.cs]
-        O -- lee --> JSON
+graph TB
+    subgraph EXT["Capa de Automatización Industrial"]
+        direction LR
+        PLC[CODESYS PLC<br/>Codesys_Simulation.project]
+        OPC[FluidSim OPC<br/>OPC SIMULATION.ct]
+    end
+
+    subgraph PROD["Producción"]
+        P[Produccion.cs] -->|spawn escalonado| SP[Spawners — piezas + cajas]
+    end
+
+    subgraph JSON["Datos de Movimiento"]
+        JF[(JSON_Generados/<br/>12 archivos de poses)]
     end
 
     subgraph ASSEMBLY["Celda de Ensamblaje"]
-        direction TB
-        subgraph GRIPPERS["Brazos Gripper"]
-            B1[Alpha · Brazos]
-            B2[Beta · Brazos]
-        end
-        subgraph SUCTION["Brazo Ventosa"]
-            B3[Omega · Ventosa]
-        end
-        subgraph PARTS["Piezas del Dron"]
-            BASE[Base] --- PCB[PCB]
-            MOTOR[Motores ×4] --- HELICE[Hélices ×4]
-            TAPA[Tapa]
-        end
-        B1 & B2 -->|agarre + snap| MOTOR & HELICE
-        B1 -->|agarre + snap| BASE
-        B3 -->|ventosa + snap| PCB & TAPA
+        B1[Alpha · Brazos<br/>Base]
+        B2[Beta · Brazos<br/>Motores ×4 + Hélices ×4]
+        B3[Omega · Ventosa<br/>PCB + Tapa + transferencia]
     end
 
     subgraph PALLET["Paletizado"]
-        direction TB
-        B4[Paletizador · Ventosa<br/>ruedas mecanum]
-        CARRO1[Carro 1]
-        CARRO2[Carro 2]
-        B4 -->|llena| CARRO1
-        B4 -.->|rota a| CARRO2
+        CARRO[CarroPaletizador.cs] -->|conduce| B4[Paletizador · Ventosa<br/>ruedas mecanum]
+        B4 -->|llena| C1[Carro 1]
+        B4 -.->|cambia a| C2[Carro 2]
     end
 
-    PROD -->|instancia| PARTS
-    O -->|activa| B1 & B2 & B3 & B4
+    SP -->|instancia| ASSEMBLY
+    B1 & B2 & B3 & B4 -. leen .-> JF
     B3 -->|transfiere dron| B4
+    EXT -.->|señales| ASSEMBLY
 
-    style O fill:#534AB7,stroke:#26215C,color:#fff
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
     style B4 fill:#B75A34,stroke:#5C2506,color:#fff
+    style CARRO fill:#534AB7,stroke:#26215C,color:#fff
+    style PLC fill:#534AB7,stroke:#26215C,color:#fff
+    style OPC fill:#534AB7,stroke:#26215C,color:#fff
 ```
 
 ### Configuración de Brazos
 
-| Brazo | Clase | Efector Final | Rol | Componentes Manejados |
-|-------|-------|--------------|-----|----------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas grandes y mecánicas | Base, Motores diagonales x2, Hélices diagonales x2 |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | Ensamble — piezas mecánicas (en pareja con Alpha) | Motores diagonales x2, Hélices diagonales x2 |
-| **Omega** | `Ventosa.cs` | Ventosa (succión) | Ensamble — piezas delicadas + transferencia de dron | PCB, Tapa, dron completado → zona de paletizado |
-| **Paletizador** | `Ventosa.cs` | Ventosa (succión) | Paletizado — recoge dron, se desplaza con ruedas mecanum, llena carros | Drones completados → Cajas de Carro 1 / Carro 2 |
+| Brazo | Clase | Efector Final | Estado | Componentes Manejados |
+|-------|-------|--------------|--------|----------------------|
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Base |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Motores ×4, Hélices ×4 |
+| **Omega** | `Ventosa.cs` | Ventosa (succión) | ✅ Implementado | PCB, Tapa, transferencia del dron |
+| **Paletizador** | `Ventosa.cs` + ruedas mecanum | Ventosa (succión) | ✅ Implementado | Drones completados → Carro 1 / Carro 2 |
 
 ### Flujo de Secuencia de Ensamblaje
 
 ```mermaid
 sequenceDiagram
-    participant O as Orquestador
-    participant A as Alpha
-    participant B as Beta
-    participant W as Omega
-    participant P as Paletizador
+    participant P as Produccion
+    participant A as Alpha (Brazos)
+    participant B as Beta (Brazos)
+    participant W as Omega (Ventosa)
+    participant PAL as Paletizador
     participant D as Dron
 
     rect rgb(30, 80, 60)
-        Note over O,D: Fase de Ensamblaje (< 1 min)
-        O->>A: Etapa 1 — Colocar Base
-        A->>D: agarre → suelta Base
+        Note over P,D: Fase 1 — Spawning (retrasos escalonados de 2s)
+        P->>D: spawn Base → PCB → Motores → Hélices → Tapa → Cajas
+    end
 
-        O->>W: Etapa 2 — Colocar PCB
-        W->>D: ventosa → snap PCB
+    rect rgb(25, 60, 90)
+        Note over A,D: Fase 2 — Ensamblaje (cada brazo lee su propio JSON)
+        A->>D: agarre + colocación Base
+        Note right of A: CentrarBase.IniciarCentrado()
+        W->>D: ventosa + snap PCB
 
-        O->>+A: Etapa 3 — Motores 1 y 3
-        O->>+B: Etapa 3 — Motores 1 y 3
-        A->>D: snap Motor
-        B->>D: snap Motor
-        deactivate A
-        deactivate B
+        par Beta coloca los 4 motores
+            B->>D: snap Motor 1
+            B->>D: snap Motor 2
+            B->>D: snap Motor 3
+            B->>D: snap Motor 4
+        end
 
-        O->>+A: Etapa 4 — Motores 2 y 4
-        O->>+B: Etapa 4 — Motores 2 y 4
-        A->>D: snap Motor
-        B->>D: snap Motor
-        deactivate A
-        deactivate B
+        W->>D: ventosa + snap Tapa
 
-        O->>W: Etapa 5 — Colocar Tapa
-        W->>D: ventosa → snap Tapa
+        par Beta coloca las 4 hélices
+            B->>D: snap Hélice 1
+            B->>D: snap Hélice 2
+            B->>D: snap Hélice 3
+            B->>D: snap Hélice 4
+        end
 
-        O->>+A: Etapa 6 — Hélices 1 y 3
-        O->>+B: Etapa 6 — Hélices 1 y 3
-        A->>D: snap Hélice
-        B->>D: snap Hélice
-        deactivate A
-        deactivate B
-
-        O->>+A: Etapa 7 — Hélices 2 y 4
-        O->>+B: Etapa 7 — Hélices 2 y 4
-        A->>D: snap Hélice
-        B->>D: snap Hélice
-        deactivate A
-        deactivate B
-
-        O->>W: Etapa 8 — Transferir dron
-        W->>P: ubica dron en zona de paletizado
+        Note over D: DronListo.PrepararParaLevantamiento()
+        W->>PAL: transfiere dron a zona de paletizado
     end
 
     rect rgb(120, 60, 20)
-        Note over P: Fase de Paletizado (bucle paralelo)
-        loop Cada dron
-            P->>D: recoge de zona de paletizado
-            P->>P: se desplaza al carro activo
-            P->>P: ubica en caja · cierra caja
+        Note over PAL: Fase 3 — Paletizado (bucle CarroPaletizador)
+        loop Carro 1 → Carro 2 (2 slots × 2 drones c/u)
+            PAL->>D: recoge de zona de paletizado
+            PAL->>PAL: IrA(puntoGiro) → IrA(destino)
+            PAL->>PAL: deposita en caja
         end
-        Note over P: Carro lleno → cambia carro → repite
+        PAL->>PAL: IrA(puntoInicio)
     end
 ```
 
@@ -1159,47 +1187,73 @@ sequenceDiagram
 classDiagram
     direction TB
 
-    class OrquestadorDron {
-        +Brazos alfa, beta
-        +Ventosa omega, paletizador
-        +string archivoMaestro
-        +int etapaActual
-        +CargarMaestro()
-        +EjecutarEtapa(int index)
-    }
-
     class Brazos {
         +ArticulationBody Waist..Gear2
         +List~RobotPose~ poses
         +bool jugandoSecuencia
+        +string saveFileName
+        +float speed
+        +CentrarBase scriptCentrarBase
         +IniciarSecuencia()
-        +AgarrarObjeto()
-        +LiberarObjeto()
+        +IniciarSecuenciaConEspera()
         +LoadFromFile()
+        +NotifyObjectInside(GameObject)
+        +NotifyObjectExit(GameObject)
+        -AgarrarObjeto()
+        -LiberarObjeto()
     }
 
     class Ventosa {
-        +ArticulationBody Waist..Arm03
+        +ArticulationBody Waist..GripperAssembly
         +bool suctionActive
+        +float suctionForce
         +List~VentosaPose~ poses
         +bool jugandoSecuencia
+        +string saveFileName
+        +bool TieneObjeto
+        +Transform puntoDestinoDron
+        +Vector3 rotacionFijaAlAgarrar
         +IniciarSecuencia()
-        +NotifyObjectInside()
+        +IniciarSecuenciaConEspera()
         +LoadFromFile()
+        +NotifyObjectInside(GameObject)
+        +LiberarObjeto()
+    }
+
+    class CarroPaletizador {
+        +Transform puntoInicio, puntoGiro
+        +Transform punto_1_1..punto_2_2
+        +Ventosa ventosa
+        +float velocidadMovimiento
+        +float velocidadRotacion
+        -SecuenciaCompleta()
+        -EsperarAgarreYNavegar(Transform)
+        -SoltarYEsperar()
+        -IrA(Transform)
+    }
+
+    class DronListo {
+        +bool dronesListo
+        +PrepararParaLevantamiento()
+        +SoltarDron()
     }
 
     class EnsambleGri {
         +Transform puntoEnsamble
+        +Transform baseParent
         +bool esHelice
         +bool forzarRotacionAbsoluta
-        +Transform baseParent
-        +ConfigurarRotacionPorNumero()
+        +bool usarRotacionPorNumero
+        +Vector3 rotacionForzada
+        +NotificarLiberad(Collider[])
+        -ConfigurarRotacionPorNumero(string)
     }
 
     class Ensamble {
         +Transform puntoEnsamble
         +bool snapPorProximidad
         +bool congelarAlLiberar
+        +float distanciaActivacionSnap
         +Vector3 rotacionFinalEnsamble
         +NotificarLiberad()
     }
@@ -1209,28 +1263,40 @@ classDiagram
         +Spawner spawnMotor1..4
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
+        +Spawner[] spawnsCaja
         +IEnumerator SecuenciaEnsamblaje()
     }
 
     class Spawner {
         +GameObject prefab
         +Transform puntoEnsamble
-        +Spawn()
+        +GameObject Spawn()
     }
 
     class CentrarBase {
-        +float targetX, targetZ
-        +CentrarEnXZ()
+        +Transform puntoDestino
+        +Vector3 rotacionFija
+        +IniciarCentrado()
     }
 
-    OrquestadorDron --> Brazos : alfa / beta
-    OrquestadorDron --> Ventosa : omega / paletizador
-    Brazos --> EnsambleGri : snap via GripperTrigger
-    Ventosa --> Ensamble : snap via SuctionTrigger
+    class GripperTrigger {
+        +Brazos mainScript
+    }
+
+    class SuctionTrigger {
+        +Ventosa mainScript
+    }
+
+    CarroPaletizador --> Ventosa : conduce paletizador
+    GripperTrigger --> Brazos : OnTriggerEnter
+    SuctionTrigger --> Ventosa : OnTriggerEnter
+    Brazos --> EnsambleGri : snap al agarrar
+    Ventosa --> Ensamble : snap por succión
     Brazos --> CentrarBase : centra Base al soltar
     Produccion --> Spawner : gestiona
     Spawner ..> EnsambleGri : asigna baseParent
     Spawner ..> Ensamble : asigna puntoEnsamble
+    DronListo ..> Brazos : referencia en escena
 ```
 
 ---
@@ -1305,7 +1371,7 @@ void OnTriggerEnter(Collider other) {
 
 ### 3. Secuenciador JSON
 
-Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JSON_Generados/` y se cargan en tiempo de ejecución desde `StreamingAssets/`. Cada archivo almacena una lista de objetos `RobotPose` con todos los targets de articulación.
+Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JSON_Generados/` y se cargan en tiempo de ejecución. Cada archivo almacena una lista de objetos `RobotPose` con todos los targets de articulación.
 
 **Estructura de datos real de pose** (`RobotPose`):
 ```json
@@ -1332,10 +1398,10 @@ Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JS
 |---------|-------|-------|-------------|
 | `Poses_BaseNueva.json` | Alpha | 6 | Colocar base del dron |
 | `Poses_PCB.json` | Omega | 7 | Colocar PCB con ventosa |
-| `Poses_Motor1.json` | Beta | 6 | Motor diagonal 1 |
-| `Poses_Motor2.json` | Beta | 4 | Motor diagonal 2 |
-| `Poses_Motor3.json` | Beta | 6 | Motor diagonal 3 |
-| `Poses_Motor4.json` | Beta | 4 | Motor diagonal 4 |
+| `Poses_Motor1.json` | Beta | 6 | Motor 1 |
+| `Poses_Motor2.json` | Beta | 4 | Motor 2 |
+| `Poses_Motor3.json` | Beta | 6 | Motor 3 |
+| `Poses_Motor4.json` | Beta | 4 | Motor 4 |
 | `Poses_Tapa.json` | Omega | 5 | Colocar tapa (cierre final) |
 | `Poses_Alpha.json` | Alpha | 29 | Secuencia completa Alpha |
 | `Poses_Beta.json` | Beta | 24 | Secuencia completa Beta |
@@ -1347,7 +1413,7 @@ Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JS
 
 ### 4. Arquitectura de Movimiento Descentralizada
 
-El orquestador central (`OrquestadorDron.cs`) fue **eliminado de la escena activa**. La coordinación de movimiento ahora es completamente descentralizada: cada brazo lee y ejecuta su propio archivo JSON de poses de forma independiente. Los cuatro brazos operan en secuencia por diseño de sus respectivos archivos JSON, sin un coordinador maestro sondeando su estado.
+La coordinación de movimiento es completamente descentralizada: cada brazo lee y ejecuta su propio archivo JSON de poses de forma independiente mediante `LoadFromFile()` en `Awake` e `IniciarSecuencia()` en `Start` o trigger externo. Los cuatro brazos operan en secuencia por diseño de sus respectivos archivos JSON.
 
 **Flujo de movimiento por brazo**:
 ```
@@ -1495,7 +1561,7 @@ IEnumerator ReproducirSecuencia() {
 
 ### 9. Spawner de Producción (`Produccion.cs`)
 
-Las piezas no se pre-colocan en la escena — se instancian en tiempo de ejecución por `Produccion.cs` usando componentes `Spawner` individuales, con retrasos escalonados de 2 segundos.
+Las piezas no se pre-colocan en la escena — se instancian en tiempo de ejecución por `Produccion.cs` usando componentes `Spawner` individuales. Las piezas se instancian con retrasos escalonados de 2 segundos; las cajas del paletizador se instancian todas simultáneamente al finalizar.
 
 ```csharp
 IEnumerator SecuenciaEnsamblaje() {
@@ -1512,10 +1578,14 @@ IEnumerator SecuenciaEnsamblaje() {
     spawnHelice3.Spawn(); spawnHelice4.Spawn();
     yield return new WaitForSeconds(2);
     spawnTapa.Spawn();
+    yield return new WaitForSeconds(2);
+    // Todas las cajas al mismo tiempo
+    foreach (Spawner sc in spawnsCaja)
+        sc.Spawn();
 }
 ```
 
-Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`) y `baseParent` (para `EnsambleGri`) en el prefab instanciado.
+Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`) y `baseParent` (para `EnsambleGri`) en el prefab instanciado. Para prefabs de cajas, además conecta el `HingeJoint.connectedBody` al propio `Rigidbody` de la caja, permitiendo que la bisagra de la tapa funcione correctamente.
 
 ---
 
@@ -1525,6 +1595,14 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 drone-packaging-simulation-unity/
 ├── docs/
 │   └── simulation_overview.png      # Vista isométrica de la celda robótica de ensamblaje
+├── CODESYS/                         # Proyecto PLC (runtime CODESYS)
+│   ├── Codesys_Simulation.project   # Archivo principal del proyecto CODESYS
+│   ├── Codesys_Simulation.Device.Application.*.bootinfo
+│   ├── Codesys_Simulation.Device.Application.*.compileinfo
+│   ├── Codesys_Simulation.Device.Application.xml
+│   └── Codesys_Simulation-*.opt     # Opciones de usuario/máquina
+├── Fluidsim/                        # Simulación OPC para FluidSim
+│   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
 │   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (579 líneas)
 │   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (688 líneas)
@@ -1534,18 +1612,15 @@ drone-packaging-simulation-unity/
 │   ├── EnsambleGri.cs               # Lógica snap para Motores / Hélices (174 líneas)
 │   ├── Spawner.cs                   # Instancia prefabs y asigna refs de ensamble (32 líneas)
 │   ├── Produccion.cs                # Secuenciador de spawn con coroutine escalonado (56 líneas)
-│   ├── Angulos.cs                   # Controlador manual de ángulos de articulaciones
-│   ├── CentrarBase.cs               # Centra la Base en XZ después de la colocación
+│   ├── Angulos.cs                   # Controlador manual de ángulos de articulaciones (63 líneas)
+│   ├── CentrarBase.cs               # Centra la Base en el Transform destino al soltar (91 líneas)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Mueve el carro entre waypoints
-│   ├── OrquestadorDron.cs           # En Assets pero eliminado de la escena activa
+│   ├── MoverCajon.cs                # Mueve el carro a lo largo de un array de waypoints
 │   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
 │   ├── New Animator Controller.*
-│   ├── StreamingAssets/
-│   │   └── ensamblaje_dron.json     # JSON maestro (legacy — no activo en la escena actual)
 │   ├── JSON_Generados/              # 12 archivos JSON de poses — cada brazo lee el suyo
 │   └── Scenes/
 │       └── SampleScene.unity
@@ -1564,6 +1639,7 @@ drone-packaging-simulation-unity/
 - **Unity 2021.3.45f1 LTS** (instalable desde Unity Hub)
 - **Git** (para clonar el repositorio)
 - **SO**: Windows 10/11, macOS 10.15+, o Ubuntu 20.04+
+- **CODESYS** (opcional) — para ejecutar la capa de simulación PLC
 
 ### Pasos de Instalación
 
@@ -1588,6 +1664,10 @@ drone-packaging-simulation-unity/
    - Cada brazo carga su propio archivo JSON automáticamente desde `Assets/JSON_Generados/`
    - El archivo de cada brazo se asigna en el Inspector del componente `Brazos` o `Ventosa` mediante el campo `saveFileName`
    - Los waypoints del Paletizador se asignan en el Inspector de `CarroPaletizador`
+
+5. **CODESYS / FluidSim** (opcional)
+   - Abrir `CODESYS/Codesys_Simulation.project` con CODESYS v3.5+
+   - El archivo de simulación OPC para FluidSim está en `Fluidsim/OPC SIMULATION FLUIDSIM.ct`
 
 ---
 
@@ -1703,25 +1783,24 @@ IEnumerator ReproducirSecuencia() {
 
 **Solución**:
 ```csharp
-// En EnsambleGri.cs
-if (esHelice && forzarRotacionAbsoluta) {
-    Quaternion rotacionObjetivo = Quaternion.identity;
-    
-    switch (numeroHelice) {
-        case 1: rotacionObjetivo = Quaternion.Euler(-90, 0, 0); break;
-        case 2: rotacionObjetivo = Quaternion.Euler(-90, 90, 0); break;
-        case 3: rotacionObjetivo = Quaternion.Euler(-90, 180, 0); break;
-        case 4: rotacionObjetivo = Quaternion.Euler(-90, 270, 0); break;
+// En EnsambleGri.cs — usa coincidencia de nombre vía ConfigurarRotacionPorNumero()
+if (esHelice && usarRotacionPorNumero) {
+    if (nombreLimpio.Contains("Helice1")) {
+        rotacionForzada = new Vector3(90f, 0f, 0f);
+    } else if (nombreLimpio.Contains("Helice2")) {
+        rotacionForzada = new Vector3(-90f, 90f, 0f);
+    } else if (nombreLimpio.Contains("Helice3")) {
+        rotacionForzada = new Vector3(-90f, 180f, 0f);
+    } else if (nombreLimpio.Contains("Helice4")) {
+        rotacionForzada = new Vector3(90f, 270f, 0f);
     }
-    
-    transform.rotation = rotacionObjetivo;
 }
 ```
 
 **Configuración Inspector**:
 - `Es Helice`: ✅
 - `Forzar Rotacion Absoluta`: ✅
-- `Numero Helice`: 1-4 (asignado por spawner)
+- `Usar Rotacion Por Numero`: ✅ (detecta automáticamente el número de hélice del nombre del prefab)
 
 ---
 
@@ -1842,8 +1921,9 @@ body.xDrive = drive;
 
 ```
 "Pickable" — Todas las piezas agarrables (Base, PCB, Motores, Hélices, Tapa)
-"PCB"      — Tag específico del PCB para manejo especializado
 ```
+
+> **Nota**: Todas las piezas agarrables comparten el único tag `"Pickable"`. Los scripts diferencian tipos de pieza por su componente adjunto (`Ensamble` para piezas de ventosa, `EnsambleGri` para piezas de gripper) y por coincidencia del nombre del prefab.
 
 ---
 
@@ -1858,7 +1938,7 @@ body.xDrive = drive;
 
 **Copyright © 2025 Jorge Andres Fajardo Mora y Laura Vanesa Castro Sierra. Todos los derechos reservados.**
 
-Este repositorio y la totalidad de su contenido — incluyendo, entre otros, código fuente, scripts, archivos de configuración, archivos de datos y documentación — se proporcionan exclusivamente para **fines de lectura y referencia**. 
+Este repositorio y la totalidad de su contenido — incluyendo, entre otros, código fuente, scripts, archivos de configuración, archivos de datos y documentación — se proporcionan exclusivamente para **fines de lectura y referencia**.
 
 **No se otorga ningún permiso** para copiar, modificar, distribuir, sublicenciar ni utilizar ninguna parte de este proyecto con fines comerciales o no comerciales sin **autorización escrita explícita** de los autores.
 
