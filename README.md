@@ -119,8 +119,8 @@ graph TB
     end
 
     subgraph ASSEMBLY["Assembly Cell"]
-        B1[Alpha · Brazos<br/>Base]
-        B2[Beta · Brazos<br/>Motors ×4 + Hélices ×4]
+        B1[Alpha · Brazos<br/>Base, Motors ×2, Hélices ×2]
+        B2[Beta · Brazos<br/>Motors ×2, Hélices ×2]
         B3[Omega · Ventosa<br/>PCB + Tapa + transfer]
     end
 
@@ -148,8 +148,8 @@ graph TB
 
 | Arm | Class | End Effector | Status | Components Handled |
 |-----|-------|-------------|--------|-------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Base |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Motors ×4, Hélices ×4 |
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Base, Motors ×2, Hélices ×2 |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implemented | Motors ×2, Hélices ×2 |
 | **Omega** | `Ventosa.cs` | Suction Cup (ventosa) | ✅ Implemented | PCB, Tapa, drone transfer |
 | **Paletizador** | `Ventosa.cs` + mecanum wheels | Suction Cup (ventosa) | ✅ Implemented | Completed drones → Cart 1 / Cart 2 |
 
@@ -175,21 +175,21 @@ sequenceDiagram
         Note right of A: CentrarBase.IniciarCentrado()
         W->>D: suction + snap PCB
 
-        par Beta places all 4 motors
-            B->>D: snap Motor 1
-            B->>D: snap Motor 2
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
+        par Alpha places motors (×2) and hélices (×2)
+            A->>D: snap Motor 1
+            A->>D: snap Motor 2
+            A->>D: snap Hélice 1
+            A->>D: snap Hélice 2
         end
 
-        W->>D: suction + snap Tapa
-
-        par Beta places all 4 hélices
-            B->>D: snap Hélice 1
-            B->>D: snap Hélice 2
+        par Beta places motors (×2) and hélices (×2)
+            B->>D: snap Motor 3
+            B->>D: snap Motor 4
             B->>D: snap Hélice 3
             B->>D: snap Hélice 4
         end
+
+        W->>D: suction + snap Tapa
 
         Note over D: DronListo.PrepararParaLevantamiento()
         W->>PAL: transfer drone to staging zone
@@ -423,8 +423,8 @@ Each arm's movement is defined in external JSON files under `Assets/JSON_Generad
 |------|-----|-------|-------------|
 | `Poses_BaseNueva.json` | Alpha | 6 | Place drone base |
 | `Poses_PCB.json` | Omega | 7 | Place PCB with suction |
-| `Poses_Motor1.json` | Beta | 6 | Motor 1 |
-| `Poses_Motor2.json` | Beta | 4 | Motor 2 |
+| `Poses_Motor1.json` | Alpha | 6 | Motor 1 |
+| `Poses_Motor2.json` | Alpha | 4 | Motor 2 |
 | `Poses_Motor3.json` | Beta | 6 | Motor 3 |
 | `Poses_Motor4.json` | Beta | 4 | Motor 4 |
 | `Poses_Tapa.json` | Omega | 5 | Place lid (final closure) |
@@ -455,8 +455,8 @@ Arm's own JSON file (Poses_*.json)
 |------|-----|-------|
 | `Poses_BaseNueva.json` | Alpha | 6 |
 | `Poses_PCB.json` | Omega | 7 |
-| `Poses_Motor1.json` | Beta | 6 |
-| `Poses_Motor2.json` | Beta | 4 |
+| `Poses_Motor1.json` | Alpha | 6 |
+| `Poses_Motor2.json` | Alpha | 4 |
 | `Poses_Motor3.json` | Beta | 6 |
 | `Poses_Motor4.json` | Beta | 4 |
 | `Poses_Tapa.json` | Omega | 5 |
@@ -1094,8 +1094,8 @@ graph TB
     end
 
     subgraph ASSEMBLY["Celda de Ensamblaje"]
-        B1[Alpha · Brazos<br/>Base]
-        B2[Beta · Brazos<br/>Motores ×4 + Hélices ×4]
+        B1[Alpha · Brazos<br/>Base, Motores ×2, Hélices ×2]
+        B2[Beta · Brazos<br/>Motores ×2, Hélices ×2]
         B3[Omega · Ventosa<br/>PCB + Tapa + transferencia]
     end
 
@@ -1123,8 +1123,8 @@ graph TB
 
 | Brazo | Clase | Efector Final | Estado | Componentes Manejados |
 |-------|-------|--------------|--------|----------------------|
-| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Base |
-| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Motores ×4, Hélices ×4 |
+| **Alpha** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Base, Motores ×2, Hélices ×2 |
+| **Beta** | `Brazos.cs` | Gripper (pinza) | ✅ Implementado | Motores ×2, Hélices ×2 |
 | **Omega** | `Ventosa.cs` | Ventosa (succión) | ✅ Implementado | PCB, Tapa, transferencia del dron |
 | **Paletizador** | `Ventosa.cs` + ruedas mecanum | Ventosa (succión) | ✅ Implementado | Drones completados → Carro 1 / Carro 2 |
 
@@ -1150,21 +1150,21 @@ sequenceDiagram
         Note right of A: CentrarBase.IniciarCentrado()
         W->>D: ventosa + snap PCB
 
-        par Beta coloca los 4 motores
-            B->>D: snap Motor 1
-            B->>D: snap Motor 2
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
+        par Alpha coloca motores (×2) y hélices (×2)
+            A->>D: snap Motor 1
+            A->>D: snap Motor 2
+            A->>D: snap Hélice 1
+            A->>D: snap Hélice 2
         end
 
-        W->>D: ventosa + snap Tapa
-
-        par Beta coloca las 4 hélices
-            B->>D: snap Hélice 1
-            B->>D: snap Hélice 2
+        par Beta coloca motores (×2) y hélices (×2)
+            B->>D: snap Motor 3
+            B->>D: snap Motor 4
             B->>D: snap Hélice 3
             B->>D: snap Hélice 4
         end
+
+        W->>D: ventosa + snap Tapa
 
         Note over D: DronListo.PrepararParaLevantamiento()
         W->>PAL: transfiere dron a zona de paletizado
@@ -1398,8 +1398,8 @@ Los movimientos de cada brazo se definen en archivos JSON externos en `Assets/JS
 |---------|-------|-------|-------------|
 | `Poses_BaseNueva.json` | Alpha | 6 | Colocar base del dron |
 | `Poses_PCB.json` | Omega | 7 | Colocar PCB con ventosa |
-| `Poses_Motor1.json` | Beta | 6 | Motor 1 |
-| `Poses_Motor2.json` | Beta | 4 | Motor 2 |
+| `Poses_Motor1.json` | Alpha | 6 | Motor 1 |
+| `Poses_Motor2.json` | Alpha | 4 | Motor 2 |
 | `Poses_Motor3.json` | Beta | 6 | Motor 3 |
 | `Poses_Motor4.json` | Beta | 4 | Motor 4 |
 | `Poses_Tapa.json` | Omega | 5 | Colocar tapa (cierre final) |
@@ -1430,8 +1430,8 @@ Archivo JSON propio (Poses_*.json)
 |---------|-------|-------|
 | `Poses_BaseNueva.json` | Alpha | 6 |
 | `Poses_PCB.json` | Omega | 7 |
-| `Poses_Motor1.json` | Beta | 6 |
-| `Poses_Motor2.json` | Beta | 4 |
+| `Poses_Motor1.json` | Alpha | 6 |
+| `Poses_Motor2.json` | Alpha | 4 |
 | `Poses_Motor3.json` | Beta | 6 |
 | `Poses_Motor4.json` | Beta | 4 |
 | `Poses_Tapa.json` | Omega | 5 |
