@@ -77,8 +77,6 @@
       </Node>
       <Node name="GVL">
         <Node name="EMERGENCIA" type="T_BOOL" access="ReadWrite" />
-        <Node name="PUERTO_1" type="T_BYTE" access="ReadWrite" />
-        <Node name="PUERTO_2" type="T_BYTE" access="ReadWrite" />
         <Node name="Q_EMERGENCIA" type="T_BOOL" access="ReadWrite" />
         <Node name="Q_LED_C1" type="T_BOOL" access="ReadWrite" />
         <Node name="Q_LED_C2" type="T_BOOL" access="ReadWrite" />
@@ -86,10 +84,6 @@
         <Node name="Q_LED_C4" type="T_BOOL" access="ReadWrite" />
         <Node name="Q_LED_C5" type="T_BOOL" access="ReadWrite" />
         <Node name="Q_LED_C6" type="T_BOOL" access="ReadWrite" />
-        <Node name="Q_START" type="T_BOOL" access="ReadWrite" />
-        <Node name="Q_STOP" type="T_BOOL" access="ReadWrite" />
-        <Node name="Q_VENTOSA_OMEGA" type="T_BOOL" access="ReadWrite" />
-        <Node name="Q_VENTOSA_PALET" type="T_BOOL" access="ReadWrite" />
         <Node name="SISTEMA_ACTIVO" type="T_BOOL" access="ReadWrite" />
         <Node name="START" type="T_BOOL" access="ReadWrite" />
         <Node name="STOP" type="T_BOOL" access="ReadWrite" />
