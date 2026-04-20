@@ -43,16 +43,23 @@ public class Ventosa : MonoBehaviour
     [Header("Punto de destino para soltar")]
     public Transform puntoDestinoDron;
 
+    [Header("Búsqueda dinámica del destino (para Paletizador)")]
+    [Tooltip("Detector de zona de depósito. Si está asignado, se usa su PuntoActivo en vez de puntoDestinoDron")]
+    public DetectorDeposito detectorDeposito;
+
+    [Tooltip("Si está activo, el dron se vuelve hijo de la caja al soltarlo (viaja con el carro)")]
+    public bool emparentarACaja = false;
+
     [Header("Configuración de liberación")]
     public float alturaLiberacion = 0.02f;
     public LayerMask capaBanda = 1;
 
     [Header("Rotación fija del objeto al agarrar")]
-    public Vector3 rotacionFijaAlAgarrar = new Vector3(90f, 0f, 0f); // pon aquí la rotación exacta del prefab PCB
+    public Vector3 rotacionFijaAlAgarrar = new Vector3(90f, 0f, 0f);
 
     private GameObject objectInside;
     private GameObject grabbedObject;
-    public bool TieneObjeto => grabbedObject != null;  // ← AGREGA AQUÍ
+    public bool TieneObjeto => grabbedObject != null;
     private Vector3 originalScale;
     private Transform originalParent;
     private Rigidbody originalRigidbody;
@@ -75,6 +82,13 @@ public class Ventosa : MonoBehaviour
     public bool autoStartOnPlay = false;
     public string saveFileName = "poses_ventosa.json";
 
+    [Header("Caída simulada al soltar dron")]
+    [Tooltip("Altura inicial sobre el puntoDestinoDron desde la que empieza la caída visual")]
+    public float alturaCaidaSimulada = 0.15f;
+
+    [Tooltip("Duración de la caída visual en segundos")]
+    public float duracionCaidaSimulada = 0.5f;
+
     void Awake()
     {
         LoadFromFile();
@@ -88,7 +102,6 @@ public class Ventosa : MonoBehaviour
             {
                 esperandoInicio = true;
                 tiempoEsperaInicialTimer = 0f;
-                Debug.Log($"⏰ Esperando {tiempoEsperaInicial}s antes de iniciar secuencia...");
             }
             else
             {
@@ -123,29 +136,26 @@ public class Ventosa : MonoBehaviour
         ProcesarSuccion();
 
         if (grabbedObject != null && suctionActive)
-        {
             MantenerObjetoAgarrado();
-        }
     }
 
     public void NotifyObjectInside(GameObject obj)
     {
+        // Filtro: ignorar piezas ya ensambladas
+        Ensamble ens = obj.GetComponent<Ensamble>();
+        if (ens != null && ens.yaEnsamblado)
+            return;
+
         objectInside = obj;
-        Debug.Log($"[Ventosa] Objeto detectado en la ventosa → {obj.name}");
 
         if (suctionActive && grabbedObject == null)
-        {
             AgarrarObjetoConSuccion();
-        }
     }
 
     public void NotifyObjectExit(GameObject obj)
     {
         if (objectInside == obj)
-        {
             objectInside = null;
-            Debug.Log($"[Ventosa] Objeto salió del área de succión → {obj.name}");
-        }
     }
 
     void MoverManual()
@@ -162,19 +172,24 @@ public class Ventosa : MonoBehaviour
         if (jugandoSecuencia) return;
 
         if (suctionActive && grabbedObject == null && objectInside != null)
-        {
             AgarrarObjetoConSuccion();
-        }
 
         if (!suctionActive && grabbedObject != null)
-        {
             LiberarObjeto();
-        }
     }
 
     void AgarrarObjetoConSuccion()
     {
         if (objectInside == null) return;
+
+        // Doble seguro contra re-agarre de piezas ensambladas
+        Ensamble ens = objectInside.GetComponent<Ensamble>();
+        if (ens != null && ens.yaEnsamblado)
+        {
+            Debug.LogWarning($"⚠️ Intento de re-agarrar pieza ya ensamblada: {objectInside.name}. Ignorado.");
+            objectInside = null;
+            return;
+        }
 
         grabbedObject = objectInside;
 
@@ -190,21 +205,19 @@ public class Ventosa : MonoBehaviour
             originalRigidbody.useGravity = false;
         }
 
-        // ✅ Hacer hijo manteniendo posición mundial
+        // Hacer hijo manteniendo posición mundial
         grabbedObject.transform.SetParent(gripPoint, true);
 
-        // ✅ Forzar rotación mundo específica según el objeto agarrado
+        // Forzar rotación mundo específica según el objeto agarrado
         Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
         if (ensambleScript != null && ensambleScript.rotacionAlAgarrar != Vector3.zero)
-        {
             grabbedObject.transform.rotation = Quaternion.Euler(ensambleScript.rotacionAlAgarrar);
-        }
 
-        // ✅ Guardar offset DESPUÉS de aplicar rotación correcta
+        // Guardar offset DESPUÉS de aplicar rotación correcta
         grabLocalOffset = grabbedObject.transform.localPosition;
         grabLocalRotOffset = grabbedObject.transform.localRotation;
 
-        Debug.Log($"✅ SUCCIÓN EXITOSA: {grabbedObject.name} | Rot: {grabbedObject.transform.eulerAngles}");
+        Debug.Log($"✔ Succión: {grabbedObject.name}");
     }
 
     void MantenerObjetoAgarrado()
@@ -219,77 +232,80 @@ public class Ventosa : MonoBehaviour
     public void LiberarObjeto()
     {
         if (grabbedObject == null) return;
-        Debug.Log($"🔵 DESACTIVANDO SUCCIÓN: {grabbedObject.name}");
+        Debug.Log($"🎯 [{gameObject.name}] LiberarObjeto → detector={detectorDeposito != null}, PuntoActivo={detectorDeposito?.PuntoActivo?.name ?? "NULL"}, emparentar={emparentarACaja}");
 
-        // ✅ Verificar si es el dron completo
+        string nombreObjeto = grabbedObject.name;
         bool esDronCompleto = grabbedObject.name.Contains("Dron") ||
-                              grabbedObject.name == "BasePrefab(Clone)";
-        if (esDronCompleto && puntoDestinoDron != null)
+                              grabbedObject.name.Contains("BasePrefab");
+
+        // Decidir destino: detector dinámico (Paletizador) o punto fijo (Omega)
+        Transform destinoFinal = puntoDestinoDron;
+        Transform cajaDestino = null;
+
+        if (esDronCompleto && detectorDeposito != null && detectorDeposito.PuntoActivo != null)
         {
-            Collider[] todosColliders = grabbedObject.GetComponentsInChildren<Collider>(false);
-            if (todosColliders.Length > 0)
-            {
-                Bounds boundsCompleto = todosColliders[0].bounds;
-                foreach (Collider c in todosColliders)
-                    boundsCompleto.Encapsulate(c.bounds);
-                // Distancia del pivote al punto más bajo del modelo
-                float offsetPivoteBase = grabbedObject.transform.position.y - boundsCompleto.min.y;
-                // Colocar de modo que la BASE quede exactamente sobre la mesa
-                grabbedObject.transform.position = new Vector3(
-                    puntoDestinoDron.position.x,
-                    puntoDestinoDron.position.y + offsetPivoteBase,
-                    puntoDestinoDron.position.z
-                );
-                Debug.Log($"🎯 Dron sobre mesa. Offset pivote→base: {offsetPivoteBase:F4}m | Bounds min Y: {boundsCompleto.min.y:F4}");
-            }
-            else
-            {
-                // Fallback si no hay colliders
-                grabbedObject.transform.position = puntoDestinoDron.position;
-            }
+            destinoFinal = detectorDeposito.PuntoActivo;
+            cajaDestino = detectorDeposito.CajaActiva;
+            Debug.Log($"✔ [{gameObject.name}] Usando punto activo del detector: {destinoFinal.name} en {cajaDestino?.name}");
         }
-        grabbedObject.transform.SetParent(originalParent);
+
+        if (esDronCompleto && destinoFinal != null)
+        {
+            grabbedObject.transform.position = destinoFinal.position;
+            grabbedObject.transform.rotation = destinoFinal.rotation;
+        }
+
+        // Reparentado: a la caja si es Paletizador, o al padre original si es Omega/otro
+        if (esDronCompleto && emparentarACaja && cajaDestino != null)
+        {
+            grabbedObject.transform.SetParent(cajaDestino, true);
+            Debug.Log($"🔗 Dron emparentado a: {cajaDestino.name}");
+        }
+        else
+        {
+            grabbedObject.transform.SetParent(originalParent);
+        }
+
         grabbedObject.transform.localScale = originalScale;
+
         if (originalRigidbody != null)
         {
-            // ✅ FIX — forzar física real si es dron completo, evita que quede flotando
             if (esDronCompleto)
             {
-                originalRigidbody.isKinematic = false;
-                originalRigidbody.useGravity = true;
+                // Bloqueado totalmente, nada lo mueve
+                originalRigidbody.isKinematic = true;
+                originalRigidbody.useGravity = false;
+                originalRigidbody.constraints = RigidbodyConstraints.FreezeAll;
+                originalRigidbody.collisionDetectionMode = CollisionDetectionMode.Discrete;
             }
             else
             {
                 originalRigidbody.isKinematic = wasKinematic;
                 originalRigidbody.useGravity = usedGravity;
+                originalRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             }
             originalRigidbody.velocity = Vector3.zero;
             originalRigidbody.angularVelocity = Vector3.zero;
-            originalRigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             originalRigidbody.WakeUp();
-
-
         }
-        // ✅ Notifica al script de ensamble que fue liberada
+
         grabbedObject.GetComponent<Ensamble>()?.NotificarLiberad();
         grabbedObject = null;
         objectInside = null;
         originalParent = null;
         originalRigidbody = null;
-        Debug.Log("✅ OBJETO LIBERADO - SUCCIÓN DESACTIVADA");
+
+        Debug.Log($"🔵 Liberado: {nombreObjeto}");
     }
 
     void PosicionarSobreBanda()
     {
         if (grabbedObject == null) return;
 
-        // ✅ Si es pieza que se congela, no reposicionar
+        // Si es pieza que se congela, no reposicionar
         Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
         if (ensambleScript != null && ensambleScript.congelarAlLiberar)
-        {
-            Debug.Log($"⏭️ Saltando PosicionarSobreBanda para {grabbedObject.name} (congelarAlLiberar=true)");
             return;
-        }
 
         RaycastHit hit;
         Vector3 origenRaycast = grabbedObject.transform.position + Vector3.up * 0.5f;
@@ -302,8 +318,6 @@ public class Ventosa : MonoBehaviour
                 float alturaObjeto = objCollider.bounds.extents.y;
                 Vector3 posicionSobreBanda = hit.point + Vector3.up * (alturaObjeto + alturaLiberacion);
                 grabbedObject.transform.position = posicionSobreBanda;
-
-                Debug.Log($"📐 Objeto posicionado sobre la banda a altura: {alturaObjeto + alturaLiberacion}");
             }
         }
         else
@@ -325,12 +339,9 @@ public class Ventosa : MonoBehaviour
     public void ToggleSuccion()
     {
         suctionActive = !suctionActive;
-        Debug.Log(suctionActive ? "🔄 SUCCIÓN ACTIVADA" : "🔄 SUCCIÓN DESACTIVADA");
 
         if (!suctionActive && grabbedObject != null)
-        {
             LiberarObjeto();
-        }
     }
 
     [ContextMenu("Guardar posición actual (Inspector)")]
@@ -401,7 +412,7 @@ public class Ventosa : MonoBehaviour
 
         currentPoseIndex = 0;
         jugandoSecuencia = true;
-        Debug.Log("Reproduciendo secuencia... total pasos: " + poses.Count);
+        Debug.Log($"▶ [{gameObject.name}] Secuencia iniciada ({poses.Count} pasos)");
     }
 
     [ContextMenu("Iniciar secuencia con espera")]
@@ -417,7 +428,6 @@ public class Ventosa : MonoBehaviour
         {
             esperandoInicio = true;
             tiempoEsperaInicialTimer = 0f;
-            Debug.Log($"⏰ Esperando {tiempoEsperaInicial}s antes de iniciar secuencia...");
         }
         else
         {
@@ -430,22 +440,19 @@ public class Ventosa : MonoBehaviour
         if (currentPoseIndex >= poses.Count)
         {
             jugandoSecuencia = false;
-            Debug.Log("Secuencia terminada.");
+            Debug.Log($"⏹ [{gameObject.name}] Secuencia terminada");
             return;
         }
 
-        // ⛔ Si está en proceso de liberación, no avanzar ni mover
+        // Si está en proceso de liberación, no avanzar ni mover
         if (liberandoObjeto) return;
 
-        // ⏸ Espera del delay
+        // Espera del delay entre poses
         if (esperandoPose)
         {
             timerPose += Time.deltaTime;
             if (timerPose >= poses[currentPoseIndex - 1].delay)
-            {
                 esperandoPose = false;
-                Debug.Log($"▶ Delay cumplido, avanzando a pose #{currentPoseIndex}");
-            }
             return;
         }
 
@@ -457,24 +464,48 @@ public class Ventosa : MonoBehaviour
         SmoothX(Arm03, p.arm03);
         SmoothZ(GripperAssembly, p.gripperAssembly);
 
-        if (suctionActive != p.suctionActive)
-        {
-            suctionActive = p.suctionActive;
-            Debug.Log(suctionActive ? "🔄 SUCCIÓN ACTIVADA (secuencia)" : "🔄 SUCCIÓN DESACTIVADA (secuencia)");
-        }
-
+        // Caso AGARRAR: la succión debe activarse al llegar a la pose
         if (p.suctionActive && grabbedObject == null)
         {
-            if (objectInside != null)
-                AgarrarObjetoConSuccion();
+            if (Llegamos(p))
+            {
+                suctionActive = true;
+                if (objectInside != null)
+                    AgarrarObjetoConSuccion();
 
-            // ⛔ No avanzar hasta confirmar agarre real
+                // No avanzar hasta confirmar agarre real
+                if (grabbedObject == null) return;
+
+                currentPoseIndex++;
+                if (p.delay > 0f)
+                {
+                    esperandoPose = true;
+                    timerPose = 0f;
+                }
+            }
             return;
         }
-        else if (!p.suctionActive && grabbedObject != null)
+
+        // Caso LIBERAR: la succión debe desactivarse SOLO al llegar a la pose final
+        if (!p.suctionActive && grabbedObject != null)
         {
-            StartCoroutine(LiberarEnSecuencia());
+            if (Llegamos(p))
+            {
+                suctionActive = false;
+                StartCoroutine(LiberarEnSecuencia());
+                currentPoseIndex++;
+                if (p.delay > 0f)
+                {
+                    esperandoPose = true;
+                    timerPose = 0f;
+                }
+            }
+            return;
         }
+
+        // Caso MOVIMIENTO normal (sin cambio de succión)
+        if (suctionActive != p.suctionActive)
+            suctionActive = p.suctionActive;
 
         if (Llegamos(p))
         {
@@ -483,7 +514,6 @@ public class Ventosa : MonoBehaviour
             {
                 esperandoPose = true;
                 timerPose = 0f;
-                Debug.Log($"⏸ Pose alcanzada. Esperando {p.delay}s antes de continuar...");
             }
         }
     }
@@ -492,39 +522,30 @@ public class Ventosa : MonoBehaviour
     {
         if (grabbedObject == null) yield break;
 
-        liberandoObjeto = true; // 🔒 Congela la secuencia
+        liberandoObjeto = true;
 
-        Debug.Log($"🔵 SECUENCIA: Liberando objeto {grabbedObject.name}");
-
-        // ✅ Verificar si es pieza que se congela
+        // Verificar si es pieza que se congela
         Ensamble ensambleScript = grabbedObject.GetComponent<Ensamble>();
         bool esPiezaQueSeCongela = ensambleScript != null && ensambleScript.congelarAlLiberar;
 
         if (!esPiezaQueSeCongela)
-        {
             yield return StartCoroutine(BajarABanda());
-        }
         else
-        {
-            // Para tapa: solo dar un pequeño delay antes de soltar
-            Debug.Log("📌 Pieza congelable, saltando bajada a banda");
             yield return new WaitForSeconds(0.1f);
-        }
 
         LiberarObjeto();
 
-        liberandoObjeto = false; // 🔓 Reanuda la secuencia
+        liberandoObjeto = false;
     }
 
     IEnumerator BajarABanda()
     {
-        Debug.Log("📥 Bajando brazo cerca de la banda para liberación...");
         yield return new WaitForSeconds(0.2f);
     }
 
     bool Llegamos(VentosaPose p)
     {
-        float tolerancia = 1f;
+        float tolerancia = 2f;
 
         bool bWaist = Waist == null || Mathf.Abs(Waist.xDrive.target - p.waist) < tolerancia;
         bool bArm01 = Arm01 == null || Mathf.Abs(Arm01.zDrive.target - p.arm01) < tolerancia;
@@ -578,24 +599,19 @@ public class Ventosa : MonoBehaviour
             Debug.Log("Poses guardadas en: " + fullPath);
 
 #if UNITY_EDITOR
-string folder = Path.Combine(Application.dataPath, "JSON_Generados");
+            string folder = Path.Combine(Application.dataPath, "JSON_Generados");
 
-if (!Directory.Exists(folder))
-{
-    Directory.CreateDirectory(folder);
-}
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
 
-string fileName = saveFileName;
-if (!fileName.EndsWith(".json"))
-    fileName += ".json";
+            string fileName = saveFileName;
+            if (!fileName.EndsWith(".json"))
+                fileName += ".json";
 
-string path = Path.Combine(folder, fileName);
+            string path = Path.Combine(folder, fileName);
 
-File.WriteAllText(path, json);
-
-UnityEditor.AssetDatabase.Refresh();
-
-Debug.Log("GUARDADO EN UNITY: " + path);
+            File.WriteAllText(path, json);
+            UnityEditor.AssetDatabase.Refresh();
 #endif
         }
         catch (System.Exception ex)
@@ -611,10 +627,7 @@ Debug.Log("GUARDADO EN UNITY: " + path);
         {
             string fullPath = GetFullSavePath();
             if (!File.Exists(fullPath))
-            {
-                Debug.Log("No se encontró archivo de poses en: " + fullPath);
                 return;
-            }
 
             string json = File.ReadAllText(fullPath);
             VentosaPoseContainer c = JsonUtility.FromJson<VentosaPoseContainer>(json);
@@ -643,8 +656,6 @@ Debug.Log("GUARDADO EN UNITY: " + path);
             {
                 poses = new List<VentosaPose>();
             }
-
-            Debug.Log("Poses cargadas (" + poses.Count + ") desde: " + fullPath);
         }
         catch (System.Exception ex)
         {

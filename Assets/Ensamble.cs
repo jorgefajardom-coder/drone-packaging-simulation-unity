@@ -5,15 +5,19 @@ public class Ensamble : MonoBehaviour
     [Header("Configuración de ensamble")]
     public Transform puntoEnsamble;
     public float offsetHundimiento = -0.05f;
-    public float velocidadEncaje = 3f;
+    public float velocidadEncaje = 6f;
 
     [Header("Modo de activación del encaje")]
     [Tooltip("Activar para piezas que van ENCIMA (Tapa). Desactivar para piezas que caen (PCB).")]
     public bool snapPorProximidad = false;
+
     [Tooltip("Solo si snapPorProximidad=true. Distancia al puntoEnsamble para activar el snap.")]
     public float distanciaActivacionSnap = 0.15f;
+
     [Tooltip("Activar para piezas que van ENCIMA: congela gravedad al soltarse para evitar caída brusca.")]
     public bool congelarAlLiberar = false;
+
+    public bool yaEnsamblado = false;
 
     private Rigidbody rb;
     private Collider col;
@@ -40,8 +44,9 @@ public class Ensamble : MonoBehaviour
     public void NotificarLiberad()
     {
         fueLiberad = true;
-        Debug.Log($"📦 {gameObject.name} liberada, lista para encajar.");
 
+        // Modo congelar: la pieza va ENCIMA (tapa), no cae por gravedad — 
+        // se congela en el aire y hace snap directo al puntoEnsamble
         if (congelarAlLiberar && rb != null)
         {
             rb.velocity = Vector3.zero;
@@ -51,20 +56,14 @@ public class Ensamble : MonoBehaviour
 
             if (col != null) col.enabled = false;
 
-            Debug.Log($"🧊 {gameObject.name} congelada en el aire, iniciando snap directo.");
-
             posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
             baseParent = GameObject.Find("BasePrefab(Clone)")?.transform;
             encajando = true;
-
-            if (col != null) col.enabled = false;
         }
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        Debug.Log($"💥 Colisión con: '{collision.gameObject.name}' | fueLiberad: {fueLiberad} | encajado: {encajado}");
-
         // Modos que no usan colisión como disparador
         if (snapPorProximidad || congelarAlLiberar) return;
 
@@ -93,13 +92,11 @@ public class Ensamble : MonoBehaviour
 
         rotacionAlLiberar = transform.rotation;
         posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
-
-        Debug.Log($"🔧 {gameObject.name} iniciando encaje hacia: {posicionFinal}");
     }
 
     void Update()
     {
-        // ── Modo proximidad: vigilar distancia al punto de ensamble ──
+        // Modo proximidad: vigilar distancia al punto de ensamble
         if (snapPorProximidad && fueLiberad && !encajando && !encajado && puntoEnsamble != null)
         {
             float dist = Vector3.Distance(transform.position, puntoEnsamble.position);
@@ -113,7 +110,7 @@ public class Ensamble : MonoBehaviour
             }
         }
 
-        // ── Movimiento de encaje (igual para todos los modos) ──
+        // Movimiento de encaje (igual para todos los modos)
         if (encajando && !encajado)
         {
             transform.position = Vector3.Lerp(
@@ -132,13 +129,18 @@ public class Ensamble : MonoBehaviour
             {
                 transform.position = posicionFinal;
                 transform.rotation = Quaternion.Euler(rotacionFinalEnsamble);
+
                 encajado = true;
                 encajando = false;
+                yaEnsamblado = true;
+
+                // Reactivar collider para que la pieza sea sólida de nuevo
+                if (col != null) col.enabled = true;
 
                 if (baseParent != null)
                     transform.SetParent(baseParent);
 
-                Debug.Log($"✅ {gameObject.name} ensamblada correctamente.");
+                Debug.Log($"✅ Ensamblada: {gameObject.name}");
             }
         }
     }

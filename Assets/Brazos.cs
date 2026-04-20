@@ -31,7 +31,7 @@ public class Brazos : MonoBehaviour
     public float delay = 0f;
 
     [Header("Velocidad de movimiento (°/s)")]
-    public float speed = 60f;
+    public float speed = 120f;
 
     [Header("Tiempo de espera inicial (segundos)")]
     public float tiempoEsperaInicial = 0f;
@@ -77,7 +77,6 @@ public class Brazos : MonoBehaviour
             {
                 esperandoInicio = true;
                 tiempoEsperaInicialTimer = 0f;
-                Debug.Log($"⏰ Esperando {tiempoEsperaInicial}s antes de iniciar secuencia...");
             }
             else
             {
@@ -93,7 +92,6 @@ public class Brazos : MonoBehaviour
 
     void Update()
     {
-        // Manejar espera inicial
         if (esperandoInicio)
         {
             tiempoEsperaInicialTimer += Time.deltaTime;
@@ -116,16 +114,12 @@ public class Brazos : MonoBehaviour
     public void NotifyObjectInside(GameObject obj)
     {
         objectInside = obj;
-        Debug.Log("[GripperTrigger] Objeto detectado en el gripper → " + obj.name);
     }
 
     public void NotifyObjectExit(GameObject obj)
     {
         if (objectInside == obj)
-        {
             objectInside = null;
-            Debug.Log("[GripperTrigger] Objeto salió del área del gripper → " + obj.name);
-        }
     }
 
     void MoverManual()
@@ -144,22 +138,14 @@ public class Brazos : MonoBehaviour
 
     void ProcesarAgarre()
     {
-        // Si estamos en secuencia, NO procesamos agarre manual
         if (jugandoSecuencia) return;
 
-        // ======== CERRAR → AGARRAR ========
         if (gripperClosed && grabbedObject == null && objectInside != null)
-        {
             AgarrarObjeto();
-        }
 
-        // ======== ABRIR → SOLTAR ========
         if (!gripperClosed && grabbedObject != null)
-        {
             LiberarObjeto();
-        }
 
-        // Mantener pegado si está agarrado
         if (grabbedObject != null && gripperClosed)
         {
             grabbedObject.transform.localPosition = grabLocalOffset;
@@ -178,7 +164,6 @@ public class Brazos : MonoBehaviour
         {
             rb.isKinematic = true;
             rb.useGravity = false;
-            // Detener cualquier movimiento residual
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
         }
@@ -192,7 +177,6 @@ public class Brazos : MonoBehaviour
         grabbedObject.transform.position = posicionMundial;
         grabbedObject.transform.rotation = rotacionMundial;
 
-        // ✅ Guardar el offset local para usarlo al mantenerlo pegado
         grabLocalOffset = grabbedObject.transform.localPosition;
         grabLocalRotOffset = grabbedObject.transform.localRotation;
 
@@ -200,7 +184,7 @@ public class Brazos : MonoBehaviour
         CentrarBase cb = grabbedObject.GetComponent<CentrarBase>();
         if (cb != null) scriptCentrarBase = cb;
 
-        Debug.Log("✔ OBJETO AGARRADO: " + grabbedObject.name);
+        Debug.Log("✔ Agarrado: " + grabbedObject.name);
     }
 
     void LiberarObjeto()
@@ -208,53 +192,49 @@ public class Brazos : MonoBehaviour
         if (scriptCentrarBase != null)
             scriptCentrarBase.IniciarCentrado();
 
-        Debug.Log("🔵 SOLTANDO OBJETO: " + grabbedObject.name);
+        string nombreObjeto = grabbedObject.name;
 
-        // ✅ NUEVO: Notificar al EnsambleMotor con los colliders a ignorar
         EnsambleGri ensambleGri = grabbedObject.GetComponent<EnsambleGri>();
         if (ensambleGri != null)
         {
-            // Buscar colliders de PCB y Base en la escena
             Collider colPCB = GameObject.Find("PCBPrefab(Clone)")?.GetComponent<Collider>();
             Collider colBase = GameObject.Find("BasePrefab(Clone)")?.GetComponent<Collider>();
-
             ensambleGri.NotificarLiberad(new Collider[] { colPCB, colBase });
+
+            // NO restaurar física para EnsambleGri
+            grabbedObject.transform.SetParent(null);
         }
-        // ✅ Si es PCB (el Ensamble original), notificar como antes
         else
         {
             Ensamble ensamblePCB = grabbedObject.GetComponent<Ensamble>();
             if (ensamblePCB != null)
                 ensamblePCB.NotificarLiberad();
+
+            Rigidbody rb = grabbedObject.GetComponent<Rigidbody>();
+            if (rb != null)
+            {
+                rb.isKinematic = false;
+                rb.useGravity = true;
+                rb.velocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+                rb.WakeUp();
+            }
+            grabbedObject.transform.SetParent(null);
         }
 
-        // --- el resto igual que antes ---
-        Rigidbody rb = grabbedObject.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.WakeUp();
-        }
-
-        grabbedObject.transform.SetParent(null);
         grabbedObject = null;
         if (objectInside != null) objectInside = null;
 
-        Debug.Log("✅ OBJETO LIBERADO CON FÍSICA RESTAURADA");
+        Debug.Log("🔵 Liberado: " + nombreObjeto);
     }
 
     [ContextMenu("Test Liberar Objeto")]
     public void TestLiberarObjeto()
     {
         if (grabbedObject != null)
-        {
             LiberarObjeto();
-        }
         else
-        {
             Debug.Log("No hay objeto agarrado para liberar");
-        }
     }
 
     [ContextMenu("Guardar posición actual (Inspector)")]
@@ -268,7 +248,7 @@ public class Brazos : MonoBehaviour
             arm03 = arm03Target,
             gripperAssembly = gripAssemblyTarget,
             gripperClosed = gripperClosed,
-            gripperOpenAngle = this.gripperOpenAngle,   // ← NUEVO
+            gripperOpenAngle = this.gripperOpenAngle,
             gripperClosedAngle = this.gripperClosedAngle,
             delay = 0f,
         };
@@ -289,7 +269,7 @@ public class Brazos : MonoBehaviour
             arm03 = arm03Target,
             gripperAssembly = gripAssemblyTarget,
             gripperClosed = false,
-            gripperOpenAngle = this.gripperOpenAngle,   // ← NUEVO
+            gripperOpenAngle = this.gripperOpenAngle,
             gripperClosedAngle = this.gripperClosedAngle,
             delay = 0f,
         };
@@ -331,7 +311,7 @@ public class Brazos : MonoBehaviour
 
         currentPoseIndex = 0;
         jugandoSecuencia = true;
-        Debug.Log("Reproduciendo secuencia... total pasos: " + poses.Count);
+        Debug.Log($"▶ [{gameObject.name}] Secuencia iniciada ({poses.Count} pasos)");
     }
 
     [ContextMenu("Iniciar secuencia con espera")]
@@ -347,7 +327,6 @@ public class Brazos : MonoBehaviour
         {
             esperandoInicio = true;
             tiempoEsperaInicialTimer = 0f;
-            Debug.Log($"⏰ Esperando {tiempoEsperaInicial}s antes de iniciar secuencia...");
         }
         else
         {
@@ -360,7 +339,7 @@ public class Brazos : MonoBehaviour
         if (currentPoseIndex >= poses.Count)
         {
             jugandoSecuencia = false;
-            Debug.Log("Secuencia terminada.");
+            Debug.Log($"⏹ [{gameObject.name}] Secuencia terminada");
             return;
         }
 
@@ -368,11 +347,8 @@ public class Brazos : MonoBehaviour
         {
             timerPose += Time.deltaTime;
             if (timerPose >= poses[currentPoseIndex - 1].delay)
-            {
                 esperandoPose = false;
-                Debug.Log($"▶ Delay cumplido, avanzando a pose #{currentPoseIndex}");
-            }
-            return; // No mover nada mientras esperamos
+            return;
         }
 
         RobotPose p = poses[currentPoseIndex];
@@ -389,26 +365,19 @@ public class Brazos : MonoBehaviour
         if (Gear1) SmoothX(Gear1, gripTarget);
         if (Gear2) SmoothX(Gear2, -gripTarget);
 
-        // ======== CERRAR → AGARRAR ========
         if (p.gripperClosed && grabbedObject == null && objectInside != null)
-        {
             AgarrarObjeto();
-        }
 
-        // ======== ABRIR → SOLTAR ========
         if (!p.gripperClosed && grabbedObject != null)
-        {
             LiberarObjeto();
-        }
 
-        // Mantener pegado si está agarrado (esto sí va cada frame)  ← sin cambio
+        // Mantener pegado si está agarrado
         if (grabbedObject != null && p.gripperClosed)
         {
             grabbedObject.transform.localPosition = grabLocalOffset;
             grabbedObject.transform.localRotation = grabLocalRotOffset;
         }
 
-        // ✅ Cuando alcanzamos la pose, avanzamos al siguiente paso
         if (Llegamos(p))
         {
             currentPoseIndex++;
@@ -417,14 +386,13 @@ public class Brazos : MonoBehaviour
             {
                 esperandoPose = true;
                 timerPose = 0f;
-                Debug.Log($"⏸ Pose alcanzada. Esperando {p.delay}s antes de continuar...");
             }
         }
     }
 
     bool Llegamos(RobotPose p)
     {
-        float tolerancia = 1f;
+        float tolerancia = 2f;
 
         bool bWaist = Waist == null || Mathf.Abs(Waist.xDrive.target - p.waist) < tolerancia;
         bool bArm01 = Arm01 == null || Mathf.Abs(Arm01.zDrive.target - p.arm01) < tolerancia;
@@ -463,11 +431,9 @@ public class Brazos : MonoBehaviour
     {
         string fileName = saveFileName;
 
-        // Validación básica
         if (string.IsNullOrEmpty(fileName))
             fileName = "poses.json";
 
-        // Forzar extensión correcta
         if (!fileName.EndsWith(".json"))
             fileName += ".json";
 
@@ -488,24 +454,19 @@ public class Brazos : MonoBehaviour
             Debug.Log("Poses guardadas en: " + fullPath);
 
 #if UNITY_EDITOR
-string folder = Path.Combine(Application.dataPath, "JSON_Generados");
+            string folder = Path.Combine(Application.dataPath, "JSON_Generados");
 
-if (!Directory.Exists(folder))
-{
-    Directory.CreateDirectory(folder);
-}
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
 
-string fileName = saveFileName;
-if (!fileName.EndsWith(".json"))
-    fileName += ".json";
+            string fileName = saveFileName;
+            if (!fileName.EndsWith(".json"))
+                fileName += ".json";
 
-string path = Path.Combine(folder, fileName);
+            string path = Path.Combine(folder, fileName);
 
-File.WriteAllText(path, json);
-
-UnityEditor.AssetDatabase.Refresh();
-
-Debug.Log("GUARDADO EN UNITY: " + path);
+            File.WriteAllText(path, json);
+            UnityEditor.AssetDatabase.Refresh();
 #endif
         }
         catch (System.Exception ex)
@@ -521,10 +482,7 @@ Debug.Log("GUARDADO EN UNITY: " + path);
         {
             string fullPath = GetFullSavePath();
             if (!File.Exists(fullPath))
-            {
-                Debug.Log("No se encontró archivo de poses en: " + fullPath);
                 return;
-            }
 
             string json = File.ReadAllText(fullPath);
             RobotPoseContainer c = JsonUtility.FromJson<RobotPoseContainer>(json);
@@ -542,7 +500,7 @@ Debug.Log("GUARDADO EN UNITY: " + path);
                         arm03 = pose.arm03,
                         gripperAssembly = pose.gripperAssembly,
                         gripperClosed = pose.gripperClosed,
-                        gripperOpenAngle = pose.gripperOpenAngle,   // ← NUEVO
+                        gripperOpenAngle = pose.gripperOpenAngle,
                         gripperClosedAngle = pose.gripperClosedAngle,
                         delay = pose.delay,
                     };
@@ -555,8 +513,6 @@ Debug.Log("GUARDADO EN UNITY: " + path);
             {
                 poses = new List<RobotPose>();
             }
-
-            Debug.Log("Poses cargadas (" + poses.Count + ") desde: " + fullPath);
         }
         catch (System.Exception ex)
         {
@@ -574,7 +530,7 @@ public class RobotPose
     public float arm03;
     public float gripperAssembly;
     public bool gripperClosed;
-    public float gripperOpenAngle = -20f;   // ← NUEVO
+    public float gripperOpenAngle = -20f;
     public float gripperClosedAngle = -8f;
     public float delay = 0f;
 }

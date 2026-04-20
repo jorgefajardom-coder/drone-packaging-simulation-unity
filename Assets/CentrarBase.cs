@@ -29,7 +29,6 @@ public class CentrarBase : MonoBehaviour
             puntoDestino.position.z
         ));
 
-        // Aplicar rotación fija continuamente durante la caída
         rb.MoveRotation(Quaternion.Euler(rotacionFija));
     }
 
@@ -49,7 +48,7 @@ public class CentrarBase : MonoBehaviour
         );
         transform.rotation = Quaternion.Euler(rotacionFija);
 
-        // Activar física solo en Y, SIN congelar rotación (la manejamos con MoveRotation)
+        // Activar física solo en Y, la rotación se maneja con MoveRotation
         rb.constraints = RigidbodyConstraints.None;
         rb.isKinematic = false;
         rb.useGravity = true;
@@ -57,8 +56,7 @@ public class CentrarBase : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
 
         cayendo = true;
-
-        Debug.Log($"[CentrarBase] Cayendo con rotación fija: {rotacionFija}");
+        Debug.Log("[CentrarBase] Base cayendo hacia destino.");
     }
 
     void OnCollisionEnter(Collision collision)
@@ -78,12 +76,13 @@ public class CentrarBase : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
         rb.isKinematic = true;
 
-        Debug.Log($"[CentrarBase] Posada. Colisión con: {collision.gameObject.name}");
+        Debug.Log("[CentrarBase] Base posada en destino.");
     }
 
     void OnDrawGizmos()
     {
         if (puntoDestino == null) return;
+
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(puntoDestino.position, 0.05f);
         Gizmos.color = Color.cyan;

@@ -5,7 +5,7 @@ public class EnsambleGri : MonoBehaviour
     [Header("Configuración de ensamble")]
     public Transform puntoEnsamble;
     public float offsetHundimiento = 0f;
-    public float velocidadEncaje = 2f;      // ← ahora es m/s real, no factor de Lerp
+    public float velocidadEncaje = 2f;
     public float distanciaActivacion = 0.15f;
 
     [Header("Configuración de rotación para hélices")]
@@ -37,7 +37,6 @@ public class EnsambleGri : MonoBehaviour
         if (nombreLimpio.Contains("Helice") || nombreLimpio.Contains("Hélice"))
         {
             esHelice = true;
-            Debug.Log($"🔄 Detectada hélice: {gameObject.name}");
 
             if (usarRotacionPorNumero)
                 ConfigurarRotacionPorNumero(nombreLimpio);
@@ -52,25 +51,13 @@ public class EnsambleGri : MonoBehaviour
     void ConfigurarRotacionPorNumero(string nombreLimpio)
     {
         if (nombreLimpio.Contains("Helice1") || nombreLimpio.Contains("Hélice1"))
-        {
             rotacionForzada = new Vector3(90f, 0f, 0f);
-            Debug.Log($"📐 Hélice 1 rotación: {rotacionForzada}");
-        }
         else if (nombreLimpio.Contains("Helice2") || nombreLimpio.Contains("Hélice2"))
-        {
             rotacionForzada = new Vector3(-90f, 90f, 0f);
-            Debug.Log($"📐 Hélice 2 rotación: {rotacionForzada}");
-        }
         else if (nombreLimpio.Contains("Helice3") || nombreLimpio.Contains("Hélice3"))
-        {
             rotacionForzada = new Vector3(-90f, 180f, 0f);
-            Debug.Log($"📐 Hélice 3 rotación: {rotacionForzada}");
-        }
         else if (nombreLimpio.Contains("Helice4") || nombreLimpio.Contains("Hélice4"))
-        {
             rotacionForzada = new Vector3(90f, 270f, 0f);
-            Debug.Log($"📐 Hélice 4 rotación: {rotacionForzada}");
-        }
     }
 
     public void NotificarLiberad(Collider[] ignorar)
@@ -78,7 +65,7 @@ public class EnsambleGri : MonoBehaviour
         fueLiberad = true;
         collidersAIgnorar = ignorar;
 
-        // ← NUEVO: kinematic inmediato para que no empuje la base ni un solo frame
+        // Kinematic inmediato para que no empuje la base ni un solo frame
         if (rb != null)
         {
             rb.isKinematic = true;
@@ -107,8 +94,7 @@ public class EnsambleGri : MonoBehaviour
 
         if (encajando && !encajado)
         {
-            // ← CAMBIADO: MoveTowards en lugar de Lerp — velocidad constante, 
-            //   llega siempre al mismo punto sin depender del framerate
+            // MoveTowards: velocidad constante, independiente del framerate
             transform.position = Vector3.MoveTowards(
                 transform.position,
                 posicionFinal,
@@ -118,10 +104,9 @@ public class EnsambleGri : MonoBehaviour
             transform.rotation = Quaternion.RotateTowards(
                 transform.rotation,
                 rotacionObjetivo,
-                Time.deltaTime * 180f   // 180°/s — ajusta si necesitas más lento/rápido
+                Time.deltaTime * 180f
             );
 
-            // Reemplaza este bloque al finalizar el encaje:
             if (Vector3.Distance(transform.position, posicionFinal) < 0.0005f)
             {
                 transform.position = posicionFinal;
@@ -146,7 +131,6 @@ public class EnsambleGri : MonoBehaviour
     {
         encajando = true;
 
-        // rb ya es kinematic desde NotificarLiberad, pero por seguridad:
         if (rb != null)
         {
             rb.isKinematic = true;
@@ -157,19 +141,10 @@ public class EnsambleGri : MonoBehaviour
         if (col != null) col.enabled = false;
 
         if (esHelice && forzarRotacionAbsoluta)
-        {
             rotacionObjetivo = Quaternion.Euler(rotacionForzada);
-            Debug.Log($"🔄 Hélice {gameObject.name} forzando rotación: {rotacionForzada}");
-        }
         else
-        {
             rotacionObjetivo = puntoEnsamble.rotation;
-        }
 
-        // ← CAMBIADO: offsetHundimiento en el eje Y del mundo, igual que antes,
-        //   pero ahora es 100% determinista porque rb ya no tiene física activa
         posicionFinal = puntoEnsamble.position + Vector3.up * offsetHundimiento;
-
-        Debug.Log($"🔧 Encajando {(esHelice ? "hélice" : "pieza")} → destino: {posicionFinal}");
     }
 }
