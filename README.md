@@ -25,6 +25,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 - [Overview](#overview)
 - [Technical Stack](#technical-stack)
+- [CODESYS & FluidSIM Integration](#codesys--fluidsim-integration)
 - [System Architecture](#system-architecture)
 - [Implemented Systems](#implemented-systems)
 - [Project Structure](#project-structure)
@@ -41,7 +42,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 This project is a **Unity-based simulation** of a robotic drone assembly and palletizing cell. Four robotic arms collaborate to assemble a drone through physically realistic interactions and JSON-driven motion sequences. The completed drone is then transported and palletized into production carts by a fourth arm that moves autonomously on **mecanum wheels**.
 
-The simulation is intended for **virtual process validation** in technical and academic contexts. It integrates with a **CODESYS PLC project** and a **FluidSim OPC simulation** that model the industrial automation layer.
+The simulation is intended for **virtual process validation** of industrial robotic cells. It integrates with a **CODESYS PLC project** and a **FluidSim OPC simulation** that model the industrial automation layer.
 
 ### Key Features
 
@@ -100,6 +101,214 @@ Physics.IgnoreCollision // Dynamic collision control
 
 ---
 
+## CODESYS & FluidSIM Integration
+
+### Tool Versions
+
+| Tool | Version | Vendor |
+|------|---------|--------|
+| **CODESYS** | V3.5 SP9 Patch 1+ | 3S-Smart Software Solutions GmbH |
+| **FluidSIM** | 4.2p / 1.67 Pneumatics (19.02.2010) | Festo Didactic GmbH & Co. KG |
+
+---
+
+### Communication Architecture
+
+The three layers communicate over two protocols: **TCP** (Unity ↔ CODESYS) and **OPC** (CODESYS ↔ FluidSIM).
+
+```mermaid
+graph LR
+    subgraph UNITY["Unity 2021.3 LTS"]
+        U1[Ventosa.cs<br/>CarroPaletizador.cs]
+        U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte each</i>]
+        U1 -->|packs bits| U2
+    end
+
+    subgraph CODESYS["CODESYS V3.5 SP9"]
+        C1[GVL — Global Variables]
+        C2[Main PLC Program]
+        C3[I/O Module 1<br/>salidas_plc1]
+        C4[I/O Module 2<br/>salidas_plc2]
+        C1 -->|TCP receive| C2
+        C2 --> C3
+        C2 --> C4
+    end
+
+    subgraph FLUIDSIM["FluidSIM 4.2p Pneumatics"]
+        F1[OPC Variables<br/>NEUMATICA_ON<br/>NEUMATICA_OFF]
+        F2[Pneumatic Circuit<br/>Simulation]
+        F1 --> F2
+    end
+
+    subgraph HW["Physical I/O"]
+        H1[entradas_plc1<br/><i>BP1, BP2, START<br/>STOP, EMERGENCIA</i>]
+        H2[Suction Outputs<br/>Ventosa Omega / Palet]
+        H3[LED Panel<br/>LED1 – LED8]
+    end
+
+    U2 -->|TCP socket| C1
+    C2 -->|OPC server| F1
+    H1 -->|byte input| C2
+    C3 --> H2
+    C3 --> H3
+    C4 --> H3
+    C4 -->|NEUMATICA_ON/OFF| F1
+
+    style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
+    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
+    style FLUIDSIM fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+```
+
+---
+
+### Variable Map
+
+#### TCP Variables (Unity → CODESYS)
+
+| Variable | Type | Bits | Description |
+|----------|------|------|-------------|
+| `TCP_COMANDOS_VENTOSAS` | `BYTE` | Bit 0 = Omega · Bit 1 = Paletizador | Suction cup on/off commands sent from Unity over TCP |
+| `TCP_COMANDOS_LEDS` | `BYTE` | Bits 0–7 = LED1–LED8 | LED panel state sent from Unity over TCP |
+
+#### Physical Inputs (`entradas_plc1` byte — bit mask)
+
+| Bit | Mask | Variable | Description |
+|-----|------|----------|-------------|
+| 0 | `16#01` | `BP1` | Pushbutton 1 |
+| 1 | `16#02` | `BP2` | Pushbutton 2 |
+| 2 | `16#04` | `START` | Start command |
+| 3 | `16#08` | `STOP` | Stop command (NC — must be HIGH to run) |
+| 4 | `16#10` | `EMERGENCIA` | Emergency stop (NC — must be HIGH to run) |
+
+#### Output Module 1 (`salidas_plc1` byte)
+
+| Bit | Mask | Signal | Description |
+|-----|------|--------|-------------|
+| 0 | `16#01` | `VENTOSA_OMEGA_ON` | Activate Omega suction |
+| 1 | `16#02` | `VENTOSA_OMEGA_OFF` | Deactivate Omega suction |
+| 2 | `16#04` | `VENTOSA_PALETIZADOR_ON` | Activate Palletizer suction |
+| 3 | `16#08` | `VENTOSA_PALETIZADOR_OFF` | Deactivate Palletizer suction |
+| 4 | `16#10` | `LED7` | LED 7 |
+| 5 | `16#20` | `LED8` | LED 8 |
+| 6 | `16#40` | `LED5` | LED 5 |
+| 7 | `16#80` | `LED6` | LED 6 |
+
+#### Output Module 2 (`salidas_plc2` byte)
+
+| Bit | Mask | Signal | Description |
+|-----|------|--------|-------------|
+| 0 | `16#01` | `LED2` | LED 2 |
+| 1 | `16#02` | `LED1` | LED 1 |
+| 2 | `16#04` | `LED4` | LED 4 |
+| 3 | `16#08` | `LED3` | LED 3 |
+| 4 | `16#10` | `NEUMATICA_OFF` | Pneumatics off → FluidSIM via OPC |
+| 5 | `16#20` | `NEUMATICA_ON` | Pneumatics on → FluidSIM via OPC |
+
+#### FluidSIM I/O Module Mapping
+
+The three FluidSIM modules bridge CODESYS bytes to the physical circuit elements simulated in FluidSIM 4.2p. "FluidSIM In" means CODESYS **writes** to FluidSIM (actuator commands); "FluidSIM Out" means FluidSIM **sends** to CODESYS (sensor feedback).
+
+| Module | Port | Direction | CODESYS Variable | Physical Elements |
+|--------|------|-----------|-----------------|-------------------|
+| **Module 1** | Port 1 | FluidSIM In — CODESYS → FluidSIM | `salidas_plc1` (8 bits) | Solenoids 1M1/1M2 (Omega) · 2M1/2M2 (Paletizador) · Cart 2 LEDs (LED5–8) |
+| **Module 2** | Port 1 | FluidSIM Out — FluidSIM → CODESYS | `entradas_plc1` (8 bits) | Push-buttons BP1 · BP2 · START · STOP · EMERGENCIA |
+| **Module 3** | Port 1 | FluidSIM In — CODESYS → FluidSIM | `salidas_plc2` (8 bits) | Main valve 3M1/3M2 (pneumatics) · Cart 1 LEDs (LED1–4) |
+
+---
+
+### Safety & Control Logic
+
+```mermaid
+stateDiagram-v2
+    [*] --> SISTEMA_OFF : power on
+    SISTEMA_OFF --> SISTEMA_ON : START rising edge\nAND STOP=1 AND EMERGENCIA=1
+    SISTEMA_ON --> SISTEMA_OFF : STOP=0 OR EMERGENCIA=0
+    SISTEMA_ON --> LED_TEST : 1 s TON pulse on startup
+    LED_TEST --> SISTEMA_ON : timer elapsed (all LEDs cleared)
+    SISTEMA_ON --> NEUMATICA_ON : STOP=1 AND EMERGENCIA=1
+    NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
+    SISTEMA_ON --> VENTOSAS_ACTIVE : TCP_COMANDOS_VENTOSAS bits
+    VENTOSAS_ACTIVE --> VENTOSAS_OFF : SISTEMA_OFF
+```
+
+| Condition | Effect |
+|-----------|--------|
+| `START` rising edge + `STOP` + `EMERGENCIA` = HIGH | `SISTEMA_ON := TRUE` + 1 s LED test |
+| `STOP` = LOW **or** `EMERGENCIA` = LOW | `SISTEMA_ON := FALSE` immediately |
+| `SISTEMA_ON` | `NEUMATICA_ON` → FluidSIM activates pneumatic circuit |
+| `TCP_COMANDOS_VENTOSAS` bit 0 | `VENTOSA_OMEGA_ON` → Module 1 bit 0 |
+| `TCP_COMANDOS_VENTOSAS` bit 1 | `VENTOSA_PALETIZADOR_ON` → Module 1 bit 2 |
+| `TCP_COMANDOS_LEDS` bits 0–7 | `LED1–LED8` → Modules 1 & 2 |
+
+---
+
+### FluidSIM Pneumatic Simulation
+
+FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simulates the full pneumatic circuit for the cell. It receives actuator commands from CODESYS through the **OPC DA server** and feeds sensor feedback (push-button states, pressure confirmations) back via the FluidSIM Out module.
+
+**Pneumatic components in the circuit:**
+
+| Element | Type | Function |
+|---------|------|----------|
+| `1M1` / `1M2` | 5/2 solenoid valve | Omega suction cup (activate / deactivate) |
+| `2M1` / `2M2` | 5/2 solenoid valve | Paletizador suction cup (activate / deactivate) |
+| `3M1` / `3M2` | 5/2 solenoid valve | Main pneumatic supply (system ON / OFF) |
+| `1BP1` | Pressure/proximity sensor | Omega cup grip confirmation → `BP1` bit |
+| `1BP2` | Pressure/proximity sensor | Paletizador cup grip confirmation → `BP2` bit |
+| Cart 1 LED panel | Indicator | 4 LEDs driven by `LED1–LED4` (salidas_plc2) |
+| Cart 2 LED panel | Indicator | 4 LEDs driven by `LED5–LED8` (salidas_plc1) |
+
+```mermaid
+graph TD
+    subgraph CODESYS["CODESYS V3.5 SP9 — OPC Server"]
+        PLC1["salidas_plc1<br/>bits 0–3: ventosa solenoids<br/>bits 4–7: LED5·6·7·8"]
+        PLC2["salidas_plc2<br/>bits 0–3: LED1·2·3·4<br/>bits 4–5: NEUMATICA_OFF/ON"]
+        IN["entradas_plc1<br/>bits 0–4: BP1·BP2·START·STOP·EMERG"]
+    end
+
+    subgraph MOD1["Module 1 — FluidSIM In"]
+        V1["1M1 / 1M2<br/>5/2 valve — Omega"]
+        V2["2M1 / 2M2<br/>5/2 valve — Paletizador"]
+        LC2["Cart 2 LEDs<br/>LED5·6·7·8"]
+    end
+
+    subgraph MOD3["Module 3 — FluidSIM In"]
+        V3["3M1 / 3M2<br/>5/2 valve — Main pneumatics"]
+        LC1["Cart 1 LEDs<br/>LED1·2·3·4"]
+    end
+
+    subgraph MOD2["Module 2 — FluidSIM Out"]
+        FB["BP1 (bit 0) · BP2 (bit 1)<br/>START (bit 2) · STOP (bit 3)<br/>EMERGENCIA (bit 4)"]
+    end
+
+    subgraph PHYS["Physical Pneumatic Circuit"]
+        CUP_O["Omega suction cup<br/>(picks PCB · Tapa · Drone)"]
+        CUP_P["Paletizador suction cup<br/>(picks completed drone)"]
+        MAIN["Pneumatic supply<br/>(compressor circuit)"]
+    end
+
+    PLC1 -->|"VENTOSA_OMEGA_ON/OFF<br/>bits 0–1"| V1
+    PLC1 -->|"VENTOSA_PALETIZADOR_ON/OFF<br/>bits 2–3"| V2
+    PLC1 -->|"bits 4–7"| LC2
+    PLC2 -->|"NEUMATICA_ON/OFF<br/>bits 4–5"| V3
+    PLC2 -->|"bits 0–3"| LC1
+    V1 --> CUP_O
+    V2 --> CUP_P
+    V3 --> MAIN
+    CUP_O -->|"1BP1 feedback"| FB
+    CUP_P -->|"1BP2 feedback"| FB
+    FB -->|"FluidSIM Out<br/>Module 2"| IN
+
+    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
+    style MOD1 fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style MOD2 fill:#1a3a5c,color:#fff,stroke:#1a3a5c
+    style MOD3 fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style PHYS fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+```
+
+---
+
 ## System Architecture
 
 ### Component Diagram
@@ -107,9 +316,10 @@ Physics.IgnoreCollision // Dynamic collision control
 ```mermaid
 graph TB
     subgraph EXT["Industrial Automation Layer"]
-        direction LR
-        PLC[CODESYS PLC<br/>CODESYS SIMULATION II.project]
-        OPC[FluidSim OPC<br/>OPC SIMULATION FLUIDSIM.ct]
+        direction TB
+        PLC["CODESYS V3.5 SP9<br/>CODESYS SIMULATION II.project"]
+        OPC["FluidSIM 4.2p Pneumatics<br/>OPC SIMULATION FLUIDSIM.ct"]
+        PLC -->|"OPC DA<br/>salidas_plc1 · salidas_plc2<br/>NEUMATICA_ON/OFF"| OPC
     end
 
     subgraph PROD["Production"]
@@ -132,18 +342,23 @@ graph TB
         B4 -.->|swaps to| C2[Cart 2]
     end
 
+    HW["BP1 · BP2 · START<br/>STOP · EMERGENCIA<br/><i>entradas_plc1</i>"]
+
     SP -->|instantiates| ASSEMBLY
     B1 & B2 & B3 & B4 -. read .-> JF
     B3 -->|transfers drone| B4
-    EXT -.->|signals| ASSEMBLY
+    B3 & B4 -->|"TCP/IP socket<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
+    HW -->|"FluidSIM Out<br/>Module 2"| PLC
+    OPC -->|"FluidSIM In · Mod 1 & 3<br/>valve actuation · LED panels"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
     style B4 fill:#B75A34,stroke:#5C2506,color:#fff
     style CARRO fill:#534AB7,stroke:#26215C,color:#fff
-    style PLC fill:#534AB7,stroke:#26215C,color:#fff
-    style OPC fill:#534AB7,stroke:#26215C,color:#fff
+    style PLC fill:#8b0000,color:#fff,stroke:#8b0000
+    style OPC fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
 ```
 
 ### Arm Configuration
@@ -1052,6 +1267,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
 - [Descripción General](#descripción-general)
 - [Stack Técnico](#stack-técnico)
+- [Integración CODESYS & FluidSIM](#integración-codesys--fluidsim)
 - [Arquitectura del Sistema](#arquitectura-del-sistema)
 - [Sistemas Implementados](#sistemas-implementados)
 - [Estructura del Proyecto](#estructura-del-proyecto)
@@ -1068,7 +1284,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
 Este proyecto es una **simulación basada en Unity** de una celda robótica de ensamblaje y paletizado de drones. Cuatro brazos robóticos colaboran para ensamblar un dron mediante interacciones físicas realistas y secuencias de movimiento impulsadas por JSON. El dron completado es luego transportado y paletizado en carros de producción por un cuarto brazo que se desplaza autónomamente con **ruedas mecanum**.
 
-La simulación está orientada a la **validación virtual de procesos** en contextos técnicos y académicos. Se integra con un **proyecto PLC de CODESYS** y una **simulación OPC de FluidSim** que modelan la capa de automatización industrial.
+La simulación está orientada a la **validación virtual de procesos** de celdas robóticas industriales. Se integra con un **proyecto PLC de CODESYS** y una **simulación OPC de FluidSim** que modelan la capa de automatización industrial.
 
 ### Características Clave
 
@@ -1127,6 +1343,214 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 
 ---
 
+## Integración CODESYS & FluidSIM
+
+### Versiones de Herramientas
+
+| Herramienta | Versión | Fabricante |
+|-------------|---------|-----------|
+| **CODESYS** | V3.5 SP9 Patch 1+ | 3S-Smart Software Solutions GmbH |
+| **FluidSIM** | 4.2p / 1.67 Neumática (19.02.2010) | Festo Didactic GmbH & Co. KG |
+
+---
+
+### Arquitectura de Comunicación
+
+Las tres capas se comunican mediante dos protocolos: **TCP/IP** (Unity ↔ CODESYS) y **OPC DA** (CODESYS ↔ FluidSIM).
+
+```mermaid
+graph LR
+    subgraph UNITY["Unity 2021.3 LTS"]
+        U1[Ventosa.cs<br/>CarroPaletizador.cs]
+        U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte cada una</i>]
+        U1 -->|empaqueta bits| U2
+    end
+
+    subgraph CODESYS["CODESYS V3.5 SP9"]
+        C1[GVL — Variables Globales]
+        C2[Programa PLC Principal]
+        C3[Módulo I/O 1<br/>salidas_plc1]
+        C4[Módulo I/O 2<br/>salidas_plc2]
+        C1 -->|recepción TCP| C2
+        C2 --> C3
+        C2 --> C4
+    end
+
+    subgraph FLUIDSIM["FluidSIM 4.2p Neumática"]
+        F1[Variables OPC<br/>NEUMATICA_ON<br/>NEUMATICA_OFF]
+        F2[Simulación Circuito<br/>Neumático]
+        F1 --> F2
+    end
+
+    subgraph HW["I/O Físico"]
+        H1[entradas_plc1<br/><i>BP1, BP2, START<br/>STOP, EMERGENCIA</i>]
+        H2[Salidas Ventosas<br/>Omega / Paletizador]
+        H3[Panel LED<br/>LED1 – LED8]
+    end
+
+    U2 -->|socket TCP/IP| C1
+    C2 -->|servidor OPC| F1
+    H1 -->|byte entrada| C2
+    C3 --> H2
+    C3 --> H3
+    C4 --> H3
+    C4 -->|NEUMATICA_ON/OFF| F1
+
+    style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
+    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
+    style FLUIDSIM fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+```
+
+---
+
+### Mapa de Variables
+
+#### Variables TCP (Unity → CODESYS)
+
+| Variable | Tipo | Bits | Descripción |
+|----------|------|------|-------------|
+| `TCP_COMANDOS_VENTOSAS` | `BYTE` | Bit 0 = Omega · Bit 1 = Paletizador | Comandos ON/OFF de ventosas enviados desde Unity por TCP |
+| `TCP_COMANDOS_LEDS` | `BYTE` | Bits 0–7 = LED1–LED8 | Estado del panel LED enviado desde Unity por TCP |
+
+#### Entradas Físicas (`entradas_plc1` byte — máscara de bits)
+
+| Bit | Máscara | Variable | Descripción |
+|-----|---------|----------|-------------|
+| 0 | `16#01` | `BP1` | Pulsador 1 (confirmación ventosa Omega) |
+| 1 | `16#02` | `BP2` | Pulsador 2 (confirmación ventosa Paletizador) |
+| 2 | `16#04` | `START` | Comando de inicio (flanco ascendente) |
+| 3 | `16#08` | `STOP` | Parada (NC — debe estar en HIGH para funcionar) |
+| 4 | `16#10` | `EMERGENCIA` | Parada de emergencia (NC — debe estar en HIGH para funcionar) |
+
+#### Módulo de Salida 1 (`salidas_plc1` byte)
+
+| Bit | Máscara | Señal | Descripción |
+|-----|---------|-------|-------------|
+| 0 | `16#01` | `VENTOSA_OMEGA_ON` | Activar succión Omega |
+| 1 | `16#02` | `VENTOSA_OMEGA_OFF` | Desactivar succión Omega |
+| 2 | `16#04` | `VENTOSA_PALETIZADOR_ON` | Activar succión Paletizador |
+| 3 | `16#08` | `VENTOSA_PALETIZADOR_OFF` | Desactivar succión Paletizador |
+| 4 | `16#10` | `LED7` | LED 7 |
+| 5 | `16#20` | `LED8` | LED 8 |
+| 6 | `16#40` | `LED5` | LED 5 |
+| 7 | `16#80` | `LED6` | LED 6 |
+
+#### Módulo de Salida 2 (`salidas_plc2` byte)
+
+| Bit | Máscara | Señal | Descripción |
+|-----|---------|-------|-------------|
+| 0 | `16#01` | `LED2` | LED 2 |
+| 1 | `16#02` | `LED1` | LED 1 |
+| 2 | `16#04` | `LED4` | LED 4 |
+| 3 | `16#08` | `LED3` | LED 3 |
+| 4 | `16#10` | `NEUMATICA_OFF` | Neumática apagada → FluidSIM vía OPC |
+| 5 | `16#20` | `NEUMATICA_ON` | Neumática encendida → FluidSIM vía OPC |
+
+#### Mapeo de Módulos I/O FluidSIM
+
+"FluidSIM In" significa que CODESYS **escribe** hacia FluidSIM (comandos de actuadores); "FluidSIM Out" significa que FluidSIM **envía** a CODESYS (retroalimentación de sensores).
+
+| Módulo | Puerto | Dirección | Variable CODESYS | Elementos Físicos |
+|--------|--------|-----------|-----------------|-------------------|
+| **Módulo 1** | Port 1 | FluidSIM In — CODESYS → FluidSIM | `salidas_plc1` (8 bits) | Solenoides 1M1/1M2 (Omega) · 2M1/2M2 (Paletizador) · LEDs Carro 2 (LED5–8) |
+| **Módulo 2** | Port 1 | FluidSIM Out — FluidSIM → CODESYS | `entradas_plc1` (8 bits) | Pulsadores BP1 · BP2 · START · STOP · EMERGENCIA |
+| **Módulo 3** | Port 1 | FluidSIM In — CODESYS → FluidSIM | `salidas_plc2` (8 bits) | Válvula principal 3M1/3M2 (neumática) · LEDs Carro 1 (LED1–4) |
+
+---
+
+### Lógica de Seguridad y Control
+
+```mermaid
+stateDiagram-v2
+    [*] --> SISTEMA_OFF : encendido
+    SISTEMA_OFF --> SISTEMA_ON : flanco START\nY STOP=1 Y EMERGENCIA=1
+    SISTEMA_ON --> SISTEMA_OFF : STOP=0 O EMERGENCIA=0
+    SISTEMA_ON --> LED_TEST : pulso TON 1s al arranque
+    LED_TEST --> SISTEMA_ON : timer expirado (todos los LEDs apagados)
+    SISTEMA_ON --> NEUMATICA_ON : STOP=1 Y EMERGENCIA=1
+    NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
+    SISTEMA_ON --> VENTOSAS_ACTIVAS : bits TCP_COMANDOS_VENTOSAS
+    VENTOSAS_ACTIVAS --> VENTOSAS_OFF : SISTEMA_OFF
+```
+
+| Condición | Efecto |
+|-----------|--------|
+| Flanco `START` + `STOP` + `EMERGENCIA` = HIGH | `SISTEMA_ON := TRUE` + test LED de 1 s |
+| `STOP` = LOW **o** `EMERGENCIA` = LOW | `SISTEMA_ON := FALSE` inmediatamente |
+| `SISTEMA_ON` | `NEUMATICA_ON` → FluidSIM activa el circuito neumático |
+| Bit 0 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_OMEGA_ON` → Módulo 1 bit 0 |
+| Bit 1 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_PALETIZADOR_ON` → Módulo 1 bit 2 |
+| Bits 0–7 de `TCP_COMANDOS_LEDS` | `LED1–LED8` → Módulos 1 y 2 |
+
+---
+
+### Simulación Neumática FluidSIM
+
+FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simula el circuito neumático completo de la celda. Recibe comandos de actuadores de CODESYS a través del **servidor OPC DA** y devuelve retroalimentación de sensores (estados de pulsadores, confirmaciones de presión) a través del módulo FluidSIM Out.
+
+**Componentes neumáticos del circuito:**
+
+| Elemento | Tipo | Función |
+|----------|------|---------|
+| `1M1` / `1M2` | Válvula solenoide 5/2 | Ventosa Omega (activar / desactivar) |
+| `2M1` / `2M2` | Válvula solenoide 5/2 | Ventosa Paletizador (activar / desactivar) |
+| `3M1` / `3M2` | Válvula solenoide 5/2 | Suministro neumático principal (sistema ON / OFF) |
+| `1BP1` | Sensor de presión/proximidad | Confirmación agarre ventosa Omega → bit `BP1` |
+| `1BP2` | Sensor de presión/proximidad | Confirmación agarre ventosa Paletizador → bit `BP2` |
+| Panel LED Carro 1 | Indicador | 4 LEDs controlados por `LED1–LED4` (salidas_plc2) |
+| Panel LED Carro 2 | Indicador | 4 LEDs controlados por `LED5–LED8` (salidas_plc1) |
+
+```mermaid
+graph TD
+    subgraph CODESYS["CODESYS V3.5 SP9 — Servidor OPC"]
+        PLC1["salidas_plc1<br/>bits 0–3: solenoides ventosa<br/>bits 4–7: LED5·6·7·8"]
+        PLC2["salidas_plc2<br/>bits 0–3: LED1·2·3·4<br/>bits 4–5: NEUMATICA_OFF/ON"]
+        IN["entradas_plc1<br/>bits 0–4: BP1·BP2·START·STOP·EMERG"]
+    end
+
+    subgraph MOD1["Módulo 1 — FluidSIM In"]
+        V1["1M1 / 1M2<br/>válvula 5/2 — Omega"]
+        V2["2M1 / 2M2<br/>válvula 5/2 — Paletizador"]
+        LC2["LEDs Carro 2<br/>LED5·6·7·8"]
+    end
+
+    subgraph MOD3["Módulo 3 — FluidSIM In"]
+        V3["3M1 / 3M2<br/>válvula 5/2 — Neumática principal"]
+        LC1["LEDs Carro 1<br/>LED1·2·3·4"]
+    end
+
+    subgraph MOD2["Módulo 2 — FluidSIM Out"]
+        FB["BP1 (bit 0) · BP2 (bit 1)<br/>START (bit 2) · STOP (bit 3)<br/>EMERGENCIA (bit 4)"]
+    end
+
+    subgraph PHYS["Circuito Neumático Físico"]
+        CUP_O["Ventosa Omega<br/>(recoge PCB · Tapa · Dron)"]
+        CUP_P["Ventosa Paletizador<br/>(recoge dron completo)"]
+        MAIN["Suministro neumático<br/>(circuito compresor)"]
+    end
+
+    PLC1 -->|"VENTOSA_OMEGA_ON/OFF<br/>bits 0–1"| V1
+    PLC1 -->|"VENTOSA_PALETIZADOR_ON/OFF<br/>bits 2–3"| V2
+    PLC1 -->|"bits 4–7"| LC2
+    PLC2 -->|"NEUMATICA_ON/OFF<br/>bits 4–5"| V3
+    PLC2 -->|"bits 0–3"| LC1
+    V1 --> CUP_O
+    V2 --> CUP_P
+    V3 --> MAIN
+    CUP_O -->|"retroalimentación 1BP1"| FB
+    CUP_P -->|"retroalimentación 1BP2"| FB
+    FB -->|"FluidSIM Out<br/>Módulo 2"| IN
+
+    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
+    style MOD1 fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style MOD2 fill:#1a3a5c,color:#fff,stroke:#1a3a5c
+    style MOD3 fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style PHYS fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+```
+
+---
+
 ## Arquitectura del Sistema
 
 ### Diagrama de Componentes
@@ -1134,9 +1558,10 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 ```mermaid
 graph TB
     subgraph EXT["Capa de Automatización Industrial"]
-        direction LR
-        PLC[CODESYS PLC<br/>CODESYS SIMULATION II.project]
-        OPC[FluidSim OPC<br/>OPC SIMULATION FLUIDSIM.ct]
+        direction TB
+        PLC["CODESYS V3.5 SP9<br/>CODESYS SIMULATION II.project"]
+        OPC["FluidSIM 4.2p Neumática<br/>OPC SIMULATION FLUIDSIM.ct"]
+        PLC -->|"OPC DA<br/>salidas_plc1 · salidas_plc2<br/>NEUMATICA_ON/OFF"| OPC
     end
 
     subgraph PROD["Producción"]
@@ -1159,18 +1584,23 @@ graph TB
         B4 -.->|cambia a| C2[Carro 2]
     end
 
+    HW["BP1 · BP2 · START<br/>STOP · EMERGENCIA<br/><i>entradas_plc1</i>"]
+
     SP -->|instancia| ASSEMBLY
     B1 & B2 & B3 & B4 -. leen .-> JF
     B3 -->|transfiere dron| B4
-    EXT -.->|señales| ASSEMBLY
+    B3 & B4 -->|"Socket TCP/IP<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
+    HW -->|"FluidSIM Out<br/>Módulo 2"| PLC
+    OPC -->|"FluidSIM In · Mód 1 & 3<br/>válvulas · paneles LED"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
     style B3 fill:#378ADD,stroke:#042C53,color:#fff
     style B4 fill:#B75A34,stroke:#5C2506,color:#fff
     style CARRO fill:#534AB7,stroke:#26215C,color:#fff
-    style PLC fill:#534AB7,stroke:#26215C,color:#fff
-    style OPC fill:#534AB7,stroke:#26215C,color:#fff
+    style PLC fill:#8b0000,color:#fff,stroke:#8b0000
+    style OPC fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
 ```
 
 ### Configuración de Brazos
