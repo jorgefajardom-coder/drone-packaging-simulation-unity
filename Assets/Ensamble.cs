@@ -40,13 +40,17 @@ public class Ensamble : MonoBehaviour
         col = GetComponent<Collider>();
     }
 
+    // Llamado desde Spawner para asignar la base correcta del ciclo actual
+    public void AsignarBase(Transform base_)
+    {
+        baseParent = base_;
+    }
+
     // Llamado desde Ventosa.cs al soltar la pieza
     public void NotificarLiberad()
     {
         fueLiberad = true;
 
-        // Modo congelar: la pieza va ENCIMA (tapa), no cae por gravedad — 
-        // se congela en el aire y hace snap directo al puntoEnsamble
         if (congelarAlLiberar && rb != null)
         {
             rb.velocity = Vector3.zero;
@@ -57,14 +61,17 @@ public class Ensamble : MonoBehaviour
             if (col != null) col.enabled = false;
 
             posicionFinal = puntoEnsamble.position + puntoEnsamble.up * offsetHundimiento;
-            baseParent = GameObject.Find("BasePrefab(Clone)")?.transform;
+
+            // Solo buscar por Find si no fue asignada ya desde Spawner
+            if (baseParent == null)
+                baseParent = GameObject.Find("BasePrefab(Clone)")?.transform;
+
             encajando = true;
         }
     }
 
     void OnCollisionEnter(Collision collision)
     {
-        // Modos que no usan colisión como disparador
         if (snapPorProximidad || congelarAlLiberar) return;
 
         if (!encajado && fueLiberad && collision.gameObject.name.Contains("BasePrefab"))
@@ -102,15 +109,19 @@ public class Ensamble : MonoBehaviour
             float dist = Vector3.Distance(transform.position, puntoEnsamble.position);
             if (dist <= distanciaActivacionSnap)
             {
-                GameObject baseObj = GameObject.Find("BasePrefab");
-                if (baseObj != null)
-                    baseParent = baseObj.transform;
+                // Solo buscar por Find si no fue asignada ya desde Spawner
+                if (baseParent == null)
+                {
+                    GameObject baseObj = GameObject.Find("BasePrefab(Clone)");
+                    if (baseObj != null)
+                        baseParent = baseObj.transform;
+                }
 
                 IniciarEncaje();
             }
         }
 
-        // Movimiento de encaje (igual para todos los modos)
+        // Movimiento de encaje
         if (encajando && !encajado)
         {
             transform.position = Vector3.Lerp(
@@ -134,7 +145,6 @@ public class Ensamble : MonoBehaviour
                 encajando = false;
                 yaEnsamblado = true;
 
-                // Reactivar collider para que la pieza sea sólida de nuevo
                 if (col != null) col.enabled = true;
 
                 if (baseParent != null)

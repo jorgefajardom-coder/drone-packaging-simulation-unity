@@ -43,12 +43,32 @@ public class Ventosa : MonoBehaviour
     [Header("Punto de destino para soltar")]
     public Transform puntoDestinoDron;
 
-    [Header("Búsqueda dinámica del destino (para Paletizador)")]
-    [Tooltip("Detector de zona de depósito. Si está asignado, se usa su PuntoActivo en vez de puntoDestinoDron")]
-    public DetectorDeposito detectorDeposito;
+    [Header("Secuencia de depósito por nombre (para Paletizador)")]
+    [Tooltip("Si está activo, el Paletizador deposita en cajas según la lista 'ordenCajas', ignorando puntoDestinoDron")]
+    public bool usarSecuenciaDeCajas = false;
+
+    [Tooltip("Orden de números de caja a llenar. Ej: [1,3,2,4,5,7,6,8] buscará CajaPrefab(Clone1), luego Clone3, etc.")]
+    public int[] ordenCajas;
+
+    [Tooltip("Prefijo base del nombre de las cajas. Ej: 'CajaPrefab(Clone' → buscará 'CajaPrefab(Clone1)', 'CajaPrefab(Clone2)'...")]
+    public string prefijoNombreCaja = "CajaPrefab(Clone";
+
+    [Tooltip("Sufijo final del nombre. Por defecto ')' para cerrar el paréntesis")]
+    public string sufijoNombreCaja = ")";
+
+    [Tooltip("Nombre exacto del hijo dentro de cada caja que marca el punto de depósito")]
+    public string nombrePuntoDeposito = "PuntoDepositoDron";
 
     [Tooltip("Si está activo, el dron se vuelve hijo de la caja al soltarlo (viaja con el carro)")]
     public bool emparentarACaja = false;
+
+    public bool dronDepositado = false;
+
+    // Contador interno de drones soltados en esta corrida
+    private int dronesSoltados = 0;
+
+    [Tooltip("Delay en segundos entre el emparentado del dron y el inicio del cierre de la tapa. Útil para dar tiempo a que el brazo se retire.")]
+    public float delayCierreTapa = 1f;
 
     [Header("Configuración de liberación")]
     public float alturaLiberacion = 0.02f;
@@ -82,12 +102,28 @@ public class Ventosa : MonoBehaviour
     public bool autoStartOnPlay = false;
     public string saveFileName = "poses_ventosa.json";
 
+    public bool secuenciaTerminada = false;
+
     [Header("Caída simulada al soltar dron")]
     [Tooltip("Altura inicial sobre el puntoDestinoDron desde la que empieza la caída visual")]
     public float alturaCaidaSimulada = 0.15f;
 
     [Tooltip("Duración de la caída visual en segundos")]
     public float duracionCaidaSimulada = 0.5f;
+
+    [Header("Sincronización externa con el cajón móvil (para Paletizador)")]
+    [Tooltip("Si está activo, el brazo esperará en la pose de liberación hasta que 'permisoParaSoltar' sea true")]
+    public bool esperarPermisoParaSoltar = false;
+
+    [Tooltip("Bandera que habilita la liberación. La setea externamente el CarroPaletizador cuando llega al punto destino.")]
+    public bool permisoParaSoltar = false;
+
+    [Header("Pose inicial (home)")]
+    public float homeWaist = 0f;
+    public float homeArm01 = 0f;
+    public float homeArm02 = 0f;
+    public float homeArm03 = 0f;
+    public float homeGripperAssembly = 0f;
 
     void Awake()
     {
@@ -96,6 +132,13 @@ public class Ventosa : MonoBehaviour
 
     void Start()
     {
+        // Aplicar home inmediatamente
+        if (Waist) { var d = Waist.xDrive; d.target = homeWaist; Waist.xDrive = d; }
+        if (Arm01) { var d = Arm01.zDrive; d.target = homeArm01; Arm01.zDrive = d; }
+        if (Arm02) { var d = Arm02.zDrive; d.target = homeArm02; Arm02.zDrive = d; }
+        if (Arm03) { var d = Arm03.xDrive; d.target = homeArm03; Arm03.xDrive = d; }
+        if (GripperAssembly) { var d = GripperAssembly.zDrive; d.target = homeGripperAssembly; GripperAssembly.zDrive = d; }
+
         if (autoStartOnPlay && poses.Count > 0)
         {
             if (tiempoEsperaInicial > 0)
@@ -232,27 +275,62 @@ public class Ventosa : MonoBehaviour
     public void LiberarObjeto()
     {
         if (grabbedObject == null) return;
-        Debug.Log($"🎯 [{gameObject.name}] LiberarObjeto → detector={detectorDeposito != null}, PuntoActivo={detectorDeposito?.PuntoActivo?.name ?? "NULL"}, emparentar={emparentarACaja}");
+
+        Debug.Log($"🎯 [{gameObject.name}] LiberarObjeto → usarSecuencia={usarSecuenciaDeCajas}, dronesSoltados={dronesSoltados}, emparentar={emparentarACaja}");
 
         string nombreObjeto = grabbedObject.name;
         bool esDronCompleto = grabbedObject.name.Contains("Dron") ||
                               grabbedObject.name.Contains("BasePrefab");
 
-        // Decidir destino: detector dinámico (Paletizador) o punto fijo (Omega)
+        // Decidir destino: secuencia de cajas por nombre (Paletizador) o punto fijo (Omega)
         Transform destinoFinal = puntoDestinoDron;
         Transform cajaDestino = null;
 
-        if (esDronCompleto && detectorDeposito != null && detectorDeposito.PuntoActivo != null)
+        if (esDronCompleto && usarSecuenciaDeCajas)
         {
-            destinoFinal = detectorDeposito.PuntoActivo;
-            cajaDestino = detectorDeposito.CajaActiva;
-            Debug.Log($"✔ [{gameObject.name}] Usando punto activo del detector: {destinoFinal.name} en {cajaDestino?.name}");
+            if (ordenCajas == null || ordenCajas.Length == 0)
+            {
+                Debug.LogError($"❌ [{gameObject.name}] usarSecuenciaDeCajas activo pero ordenCajas está vacío.");
+            }
+            else if (dronesSoltados >= ordenCajas.Length)
+            {
+                Debug.LogError($"❌ [{gameObject.name}] Ya se soltaron todos los drones de la secuencia ({dronesSoltados}/{ordenCajas.Length}).");
+            }
+            else
+            {
+                int numeroCaja = ordenCajas[dronesSoltados];
+                string nombreCaja = prefijoNombreCaja + numeroCaja + sufijoNombreCaja;
+
+                GameObject cajaObj = GameObject.Find(nombreCaja);
+                if (cajaObj == null)
+                {
+                    Debug.LogError($"❌ [{gameObject.name}] No se encontró la caja '{nombreCaja}' en la escena.");
+                }
+                else
+                {
+                    Transform punto = cajaObj.transform.Find(nombrePuntoDeposito);
+                    if (punto == null)
+                    {
+                        Debug.LogError($"❌ [{gameObject.name}] No se encontró '{nombrePuntoDeposito}' dentro de '{nombreCaja}'.");
+                    }
+                    else
+                    {
+                        destinoFinal = punto;
+                        cajaDestino = cajaObj.transform;
+                        Debug.Log($"✔ [{gameObject.name}] Depositando dron #{dronesSoltados + 1} en {nombreCaja} (punto: {punto.name})");
+                    }
+                }
+
+                dronesSoltados++;
+            }
         }
 
         if (esDronCompleto && destinoFinal != null)
         {
             grabbedObject.transform.position = destinoFinal.position;
             grabbedObject.transform.rotation = destinoFinal.rotation;
+            dronDepositado = true;
+            Debug.Log($"🎯 [{gameObject.name}] Dron colocado en {destinoFinal.name}");
         }
 
         // Reparentado: a la caja si es Paletizador, o al padre original si es Omega/otro
@@ -260,13 +338,24 @@ public class Ventosa : MonoBehaviour
         {
             grabbedObject.transform.SetParent(cajaDestino, true);
             Debug.Log($"🔗 Dron emparentado a: {cajaDestino.name}");
+
+            // Disparar el cierre de la tapa con delay configurable
+            CerradorTapa cerrador = cajaDestino.GetComponent<CerradorTapa>();
+            if (cerrador != null)
+            {
+                Debug.Log($"🔒 [{gameObject.name}] Cierre de tapa programado en {delayCierreTapa}s para {cajaDestino.name}");
+                StartCoroutine(CerrarTapaConDelay(cerrador, delayCierreTapa));
+            }
+            else
+            {
+                Debug.LogWarning($"⚠ [{gameObject.name}] {cajaDestino.name} no tiene componente CerradorTapa.");
+            }
         }
         else
         {
             grabbedObject.transform.SetParent(originalParent);
+            grabbedObject.transform.localScale = originalScale;
         }
-
-        grabbedObject.transform.localScale = originalScale;
 
         if (originalRigidbody != null)
         {
@@ -412,6 +501,9 @@ public class Ventosa : MonoBehaviour
 
         currentPoseIndex = 0;
         jugandoSecuencia = true;
+        secuenciaTerminada = false;
+        esperandoPose = false;
+        timerPose = 0f;
         Debug.Log($"▶ [{gameObject.name}] Secuencia iniciada ({poses.Count} pasos)");
     }
 
@@ -435,11 +527,28 @@ public class Ventosa : MonoBehaviour
         }
     }
 
+    public void ResetCompleto()
+    {
+        jugandoSecuencia = false;
+        secuenciaTerminada = false;
+        esperandoPose = false;
+        timerPose = 0f;
+        currentPoseIndex = 0;
+        esperandoInicio = false;
+        tiempoEsperaInicialTimer = 0f;
+        grabbedObject = null;
+        objectInside = null;
+        liberandoObjeto = false;
+        suctionActive = false;
+        dronDepositado = false;
+    }
+
     void ReproducirSecuencia()
     {
         if (currentPoseIndex >= poses.Count)
         {
             jugandoSecuencia = false;
+            secuenciaTerminada = true;
             Debug.Log($"⏹ [{gameObject.name}] Secuencia terminada");
             return;
         }
@@ -491,8 +600,19 @@ public class Ventosa : MonoBehaviour
         {
             if (Llegamos(p))
             {
+                // Si está configurado para esperar permiso externo, no suelta hasta recibirlo
+                if (esperarPermisoParaSoltar && !permisoParaSoltar)
+                {
+                    // Se queda en esta pose esperando al cajón
+                    return;
+                }
+
                 suctionActive = false;
                 StartCoroutine(LiberarEnSecuencia());
+
+                // Consumir el permiso para que el próximo ciclo requiera uno nuevo
+                permisoParaSoltar = false;
+
                 currentPoseIndex++;
                 if (p.delay > 0f)
                 {
@@ -536,6 +656,17 @@ public class Ventosa : MonoBehaviour
         LiberarObjeto();
 
         liberandoObjeto = false;
+    }
+
+    IEnumerator CerrarTapaConDelay(CerradorTapa cerrador, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (cerrador != null)
+        {
+            Debug.Log($"🔒 [{gameObject.name}] Ejecutando cierre de tapa ahora.");
+            cerrador.CerrarTapa();
+        }
     }
 
     IEnumerator BajarABanda()
@@ -684,6 +815,12 @@ public class Ventosa : MonoBehaviour
             Gizmos.color = Color.magenta;
             Gizmos.DrawLine(origenRaycast, origenRaycast + Vector3.down * 1f);
         }
+    }
+
+    public void ReiniciarContadorDrones()
+    {
+        dronesSoltados = 0;
+        Debug.Log($"[{gameObject.name}] Contador de drones reiniciado.");
     }
 }
 

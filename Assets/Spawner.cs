@@ -3,23 +3,30 @@
 public class Spawner : MonoBehaviour
 {
     public GameObject prefab;
-    public Transform puntoEnsamble; // ← asigna el PuntoEnsamble desde el Inspector
+    public Transform puntoEnsamble;
+    public Transform baseParent; // ← Produccion asigna esto antes de llamar Spawn()
 
     public GameObject Spawn()
     {
         GameObject pieza = Instantiate(prefab, transform.position, transform.rotation);
 
-        // ✅ PCB
         Ensamble encaje = pieza.GetComponent<Ensamble>();
         if (encaje != null)
+        {
             encaje.puntoEnsamble = puntoEnsamble;
+            if (baseParent != null)
+                encaje.AsignarBase(baseParent); // ← asignar base correcta
+        }
 
-        // ✅ Motor 
         EnsambleGri encajeGri = pieza.GetComponent<EnsambleGri>();
         if (encajeGri != null)
-            encajeGri.baseParent = GameObject.Find("BasePrefab(Clone)").transform;
+        {
+            if (baseParent != null)
+                encajeGri.baseParent = baseParent;
+            else
+                encajeGri.baseParent = GameObject.Find("BasePrefab(Clone)").transform;
+        }
 
-        // ✅ NUEVO: conectar HingeJoint de la tapa al Rigidbody de la caja
         HingeJoint hinge = pieza.GetComponentInChildren<HingeJoint>();
         if (hinge != null)
         {

@@ -64,6 +64,15 @@ public class Brazos : MonoBehaviour
     public bool autoStartOnPlay = false;
     public string saveFileName = "poses_cubo.json";
 
+    public bool secuenciaTerminada = false;
+
+    [Header("Pose inicial (home)")]
+    public float homeWaist = 0f;
+    public float homeArm01 = 0f;
+    public float homeArm02 = 0f;
+    public float homeArm03 = 0f;
+    public float homeGripperAssembly = 0f;
+
     void Awake()
     {
         LoadFromFile();
@@ -71,6 +80,13 @@ public class Brazos : MonoBehaviour
 
     void Start()
     {
+        // Aplicar home inmediatamente
+        if (Waist) { var d = Waist.xDrive; d.target = homeWaist; Waist.xDrive = d; }
+        if (Arm01) { var d = Arm01.zDrive; d.target = homeArm01; Arm01.zDrive = d; }
+        if (Arm02) { var d = Arm02.zDrive; d.target = homeArm02; Arm02.zDrive = d; }
+        if (Arm03) { var d = Arm03.xDrive; d.target = homeArm03; Arm03.xDrive = d; }
+        if (GripperAssembly) { var d = GripperAssembly.zDrive; d.target = homeGripperAssembly; GripperAssembly.zDrive = d; }
+
         if (autoStartOnPlay)
         {
             if (tiempoEsperaInicial > 0)
@@ -311,6 +327,9 @@ public class Brazos : MonoBehaviour
 
         currentPoseIndex = 0;
         jugandoSecuencia = true;
+        secuenciaTerminada = false;
+        esperandoPose = false;
+        timerPose = 0f;
         Debug.Log($"▶ [{gameObject.name}] Secuencia iniciada ({poses.Count} pasos)");
     }
 
@@ -334,11 +353,25 @@ public class Brazos : MonoBehaviour
         }
     }
 
+    public void ResetCompleto()
+    {
+        jugandoSecuencia = false;
+        secuenciaTerminada = false;
+        esperandoPose = false;
+        timerPose = 0f;
+        currentPoseIndex = 0;
+        esperandoInicio = false;
+        tiempoEsperaInicialTimer = 0f;
+        grabbedObject = null;
+        objectInside = null;
+    }
+
     void ReproducirSecuencia()
     {
         if (currentPoseIndex >= poses.Count)
         {
             jugandoSecuencia = false;
+            secuenciaTerminada = true;
             Debug.Log($"⏹ [{gameObject.name}] Secuencia terminada");
             return;
         }
@@ -353,41 +386,74 @@ public class Brazos : MonoBehaviour
 
         RobotPose p = poses[currentPoseIndex];
 
-        // Mover articulaciones
-        SmoothX(Waist, p.waist);
-        SmoothZ(Arm01, p.arm01);
-        SmoothZ(Arm02, p.arm02);
-        SmoothX(Arm03, p.arm03);
-        SmoothZ(GripperAssembly, p.gripperAssembly);
+// Mover articulaciones
+SmoothX(Waist, p.waist);
+SmoothZ(Arm01, p.arm01);
+SmoothZ(Arm02, p.arm02);
+SmoothX(Arm03, p.arm03);
+SmoothZ(GripperAssembly, p.gripperAssembly);
 
-        // Mover gripper
-        float gripTarget = p.gripperClosed ? p.gripperClosedAngle : p.gripperOpenAngle;
-        if (Gear1) SmoothX(Gear1, gripTarget);
-        if (Gear2) SmoothX(Gear2, -gripTarget);
+// Mover gripper
+float gripTarget = p.gripperClosed ? p.gripperClosedAngle : p.gripperOpenAngle;
+if (Gear1) SmoothX(Gear1, gripTarget);
+if (Gear2) SmoothX(Gear2, -gripTarget);
 
-        if (p.gripperClosed && grabbedObject == null && objectInside != null)
+// Caso AGARRAR: pose con gripper cerrado y sin objeto agarrado
+if (p.gripperClosed && grabbedObject == null)
+{
+    if (Llegamos(p))
+    {
+        // Intentar agarrar si hay objeto en el trigger
+        if (objectInside != null)
             AgarrarObjeto();
 
-        if (!p.gripperClosed && grabbedObject != null)
-            LiberarObjeto();
+        // No avanzar hasta confirmar agarre real
+        if (grabbedObject == null) return;
 
-        // Mantener pegado si está agarrado
-        if (grabbedObject != null && p.gripperClosed)
+        currentPoseIndex++;
+        if (p.delay > 0f)
         {
-            grabbedObject.transform.localPosition = grabLocalOffset;
-            grabbedObject.transform.localRotation = grabLocalRotOffset;
+            esperandoPose = true;
+            timerPose = 0f;
         }
+    }
+    return;
+}
 
-        if (Llegamos(p))
+// Caso SOLTAR: pose con gripper abierto y objeto agarrado
+if (!p.gripperClosed && grabbedObject != null)
+{
+    if (Llegamos(p))
+    {
+        LiberarObjeto();
+        currentPoseIndex++;
+        if (p.delay > 0f)
         {
-            currentPoseIndex++;
-
-            if (p.delay > 0f)
-            {
-                esperandoPose = true;
-                timerPose = 0f;
-            }
+            esperandoPose = true;
+            timerPose = 0f;
         }
+    }
+    return;
+}
+
+// Mantener pegado si está agarrado (durante movimiento normal)
+if (grabbedObject != null && p.gripperClosed)
+{
+    grabbedObject.transform.localPosition = grabLocalOffset;
+    grabbedObject.transform.localRotation = grabLocalRotOffset;
+}
+
+// Caso MOVIMIENTO normal (sin cambio de gripper ni agarre/soltar pendiente)
+if (Llegamos(p))
+{
+    currentPoseIndex++;
+
+    if (p.delay > 0f)
+    {
+        esperandoPose = true;
+        timerPose = 0f;
+    }
+}
     }
 
     bool Llegamos(RobotPose p)

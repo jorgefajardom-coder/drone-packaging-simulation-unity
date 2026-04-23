@@ -1,15 +1,6 @@
 {
     "poses": [
         {
-            "waist": 180.0,
-            "arm01": 0.0,
-            "arm02": 0.0,
-            "arm03": 0.0,
-            "gripperAssembly": 0.0,
-            "suctionActive": false,
-            "delay": 26.0
-        },
-        {
             "waist": 0.0,
             "arm01": 0.0,
             "arm02": 0.0,
@@ -60,6 +51,15 @@
             "arm02": 0.0,
             "arm03": 0.0,
             "gripperAssembly": 13.0,
+            "suctionActive": false,
+            "delay": 0.0
+        },
+        {
+            "waist": 0.0,
+            "arm01": 60.0,
+            "arm02": 40.0,
+            "arm03": 0.0,
+            "gripperAssembly": 80.0,
             "suctionActive": false,
             "delay": 0.0
         }
