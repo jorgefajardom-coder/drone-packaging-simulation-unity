@@ -33,6 +33,8 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Authors](#authors)
 - [License](#license-and-rights)
 
+> **17 C# scripts · 3,101 lines of code · 12 JSON pose files · Unity 2021.3.45f1 LTS**
+
 ---
 
 ## Overview
@@ -106,8 +108,8 @@ Physics.IgnoreCollision // Dynamic collision control
 graph TB
     subgraph EXT["Industrial Automation Layer"]
         direction LR
-        PLC[CODESYS PLC<br/>Codesys_Simulation.project]
-        OPC[FluidSim OPC<br/>OPC SIMULATION.ct]
+        PLC[CODESYS PLC<br/>CODESYS SIMULATION II.project]
+        OPC[FluidSim OPC<br/>OPC SIMULATION FLUIDSIM.ct]
     end
 
     subgraph PROD["Production"]
@@ -614,34 +616,84 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 
 ---
 
+### 10. Box Lid Closure and Cart Retirement
+
+Three scripts handle the final packaging step after drones are deposited into boxes.
+
+**`CerradorTapa.cs`** — Animates the box lid from an open pose to a closed pose using a configurable `AnimationCurve` (ease in/out by default). Exposes a `tapaCerrada` flag that other scripts can poll.
+
+```csharp
+[ContextMenu("Cerrar tapa (animación)")]
+public void CerrarTapa() {
+    StartCoroutine(AnimarCierre());
+}
+
+private IEnumerator AnimarCierre() {
+    float tiempo = 0f;
+    while (tiempo < duracionCierre) {
+        float tCurva = curva.Evaluate(tiempo / duracionCierre);
+        tapa.localRotation = Quaternion.Slerp(rotInicio, rotFin, tCurva);
+        tiempo += Time.deltaTime;
+        yield return null;
+    }
+    tapaCerrada = true;
+}
+```
+
+**`RetiradorCarro.cs`** — Once a cart is ready to leave the palletizing zone, this script reparents all assigned box GameObjects as children of the cart so they move with it. It waits (via coroutine) until `CerradorTapa.tapaCerrada` is `true` on the last box before adopting.
+
+```csharp
+public void IntentarAdoptarCajas() {
+    CerradorTapa cerrador = cajaFinal.GetComponent<CerradorTapa>();
+    if (!cerrador.tapaCerrada) {
+        StartCoroutine(EsperarYAdoptar(cerrador));
+        return;
+    }
+    AdoptarCajas();
+}
+```
+
+**`DetectorDeposito.cs`** — A trigger-based sensor attached to the palletizer that detects which `PuntoDepositoDron` (deposit point child of a box) is currently inside the trigger zone. Exposes `PuntoActivo` and `CajaActiva` so `CarroPaletizador.cs` always knows the exact box and slot to target.
+
+| Script | Trigger | Key Output |
+|--------|---------|-----------|
+| `CerradorTapa.cs` | `CerrarTapa()` call | `tapaCerrada = true` |
+| `RetiradorCarro.cs` | `IntentarAdoptarCajas()` call | boxes reparented to cart |
+| `DetectorDeposito.cs` | `OnTriggerEnter` | `PuntoActivo`, `CajaActiva` |
+
+---
+
 ## Project Structure
 
 ```
 drone-packaging-simulation-unity/
 ├── docs/
-│   └── simulation_overview.png      # Isometric view of the robotic assembly cell
-├── CODESYS/                         # PLC project (CODESYS runtime)
-│   ├── Codesys_Simulation.project   # Main CODESYS project file
-│   ├── Codesys_Simulation.Device.Application.*.bootinfo
-│   ├── Codesys_Simulation.Device.Application.*.compileinfo
-│   ├── Codesys_Simulation.Device.Application.xml
-│   └── Codesys_Simulation-*.opt     # User/machine options
-├── Fluidsim/                        # OPC simulation for FluidSim
+│   └── simulation_overview.png           # Isometric view of the robotic assembly cell
+├── CODESYS II/                           # PLC project (CODESYS runtime)
+│   ├── CODESYS SIMULATION II.project     # Main CODESYS project file
+│   ├── CODESYS SIMULATION II.Device.Application.*.bootinfo
+│   ├── CODESYS SIMULATION II.Device.Application.*.compileinfo
+│   ├── CODESYS SIMULATION II.Device.Application.xml
+│   └── CODESYS SIMULATION II-*.opt       # User/machine options
+├── Fluidsim/                             # OPC simulation for FluidSim
 │   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
-│   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (579 lines)
-│   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (688 lines)
-│   ├── CarroPaletizador.cs          # Paletizador floor navigation — mecanum waypoints (163 lines)
-│   ├── DronListo.cs                 # Unifies drone parts as single rigidbody before pickup (39 lines)
-│   ├── Ensamble.cs                  # Snap logic for PCB / Tapa (144 lines)
-│   ├── EnsambleGri.cs               # Snap logic for Motors / Hélices (174 lines)
-│   ├── Spawner.cs                   # Instantiates prefabs and assigns assembly refs (32 lines)
-│   ├── Produccion.cs                # Staggered coroutine spawn sequencer (56 lines)
+│   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (601 lines)
+│   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (836 lines)
+│   ├── CarroPaletizador.cs          # Paletizador floor navigation — mecanum waypoints (330 lines)
+│   ├── DronListo.cs                 # Unifies drone parts as single rigidbody before pickup (69 lines)
+│   ├── Ensamble.cs                  # Snap logic for PCB / Tapa (156 lines)
+│   ├── EnsambleGri.cs               # Snap logic for Motors / Hélices (149 lines)
+│   ├── Spawner.cs                   # Instantiates prefabs and assigns assembly refs (39 lines)
+│   ├── Produccion.cs                # Staggered coroutine spawn sequencer (298 lines)
 │   ├── Angulos.cs                   # Manual joint angle controller (debug/test) (63 lines)
-│   ├── CentrarBase.cs               # Centers Base on target Transform after release (91 lines)
+│   ├── CentrarBase.cs               # Centers Base on target Transform after release (90 lines)
+│   ├── RetiradorCarro.cs            # Adopts boxes as children when cart retires (92 lines)
+│   ├── CerradorTapa.cs              # Animated box lid closure with AnimationCurve (101 lines)
+│   ├── DetectorDeposito.cs          # Detects active deposit point via trigger (34 lines)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Moves cart along a waypoint array
+│   ├── MoverCajon.cs                # Moves cart along a waypoint array (29 lines)
 │   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
@@ -691,7 +743,7 @@ drone-packaging-simulation-unity/
    - Paletizador waypoints are assigned in the `CarroPaletizador` Inspector
 
 5. **CODESYS / FluidSim** (optional)
-   - Open `CODESYS/Codesys_Simulation.project` with CODESYS v3.5+
+   - Open `CODESYS II/CODESYS SIMULATION II.project` with CODESYS v3.5+
    - The OPC simulation file for FluidSim is located at `Fluidsim/OPC SIMULATION FLUIDSIM.ct`
 
 ---
@@ -1008,6 +1060,8 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Autores](#autores)
 - [Licencia](#licencia-y-derechos)
 
+> **17 scripts C# · 3.101 líneas de código · 12 archivos JSON de poses · Unity 2021.3.45f1 LTS**
+
 ---
 
 ## Descripción General
@@ -1081,8 +1135,8 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 graph TB
     subgraph EXT["Capa de Automatización Industrial"]
         direction LR
-        PLC[CODESYS PLC<br/>Codesys_Simulation.project]
-        OPC[FluidSim OPC<br/>OPC SIMULATION.ct]
+        PLC[CODESYS PLC<br/>CODESYS SIMULATION II.project]
+        OPC[FluidSim OPC<br/>OPC SIMULATION FLUIDSIM.ct]
     end
 
     subgraph PROD["Producción"]
@@ -1589,34 +1643,84 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 
 ---
 
+### 10. Cierre de Tapa y Retiro de Carro
+
+Tres scripts gestionan el paso final de empaquetado después de que los drones son depositados en las cajas.
+
+**`CerradorTapa.cs`** — Anima la tapa de la caja desde una pose abierta hasta una pose cerrada usando una `AnimationCurve` configurable (ease in/out por defecto). Expone un flag `tapaCerrada` que otros scripts pueden consultar.
+
+```csharp
+[ContextMenu("Cerrar tapa (animación)")]
+public void CerrarTapa() {
+    StartCoroutine(AnimarCierre());
+}
+
+private IEnumerator AnimarCierre() {
+    float tiempo = 0f;
+    while (tiempo < duracionCierre) {
+        float tCurva = curva.Evaluate(tiempo / duracionCierre);
+        tapa.localRotation = Quaternion.Slerp(rotInicio, rotFin, tCurva);
+        tiempo += Time.deltaTime;
+        yield return null;
+    }
+    tapaCerrada = true;
+}
+```
+
+**`RetiradorCarro.cs`** — Una vez que el carro está listo para abandonar la zona de paletizado, este script reparenta todos los GameObjects de cajas asignados como hijos del carro para que se muevan con él. Espera (vía coroutine) hasta que `CerradorTapa.tapaCerrada` sea `true` en la última caja antes de adoptar.
+
+```csharp
+public void IntentarAdoptarCajas() {
+    CerradorTapa cerrador = cajaFinal.GetComponent<CerradorTapa>();
+    if (!cerrador.tapaCerrada) {
+        StartCoroutine(EsperarYAdoptar(cerrador));
+        return;
+    }
+    AdoptarCajas();
+}
+```
+
+**`DetectorDeposito.cs`** — Un sensor basado en trigger adjunto al paletizador que detecta qué `PuntoDepositoDron` (punto hijo de una caja) está actualmente dentro de la zona de trigger. Expone `PuntoActivo` y `CajaActiva` para que `CarroPaletizador.cs` siempre sepa la caja y el slot exactos a los que apuntar.
+
+| Script | Trigger | Salida Clave |
+|--------|---------|-------------|
+| `CerradorTapa.cs` | Llamada a `CerrarTapa()` | `tapaCerrada = true` |
+| `RetiradorCarro.cs` | Llamada a `IntentarAdoptarCajas()` | cajas reparentadas al carro |
+| `DetectorDeposito.cs` | `OnTriggerEnter` | `PuntoActivo`, `CajaActiva` |
+
+---
+
 ## Estructura del Proyecto
 
 ```
 drone-packaging-simulation-unity/
 ├── docs/
-│   └── simulation_overview.png      # Vista isométrica de la celda robótica de ensamblaje
-├── CODESYS/                         # Proyecto PLC (runtime CODESYS)
-│   ├── Codesys_Simulation.project   # Archivo principal del proyecto CODESYS
-│   ├── Codesys_Simulation.Device.Application.*.bootinfo
-│   ├── Codesys_Simulation.Device.Application.*.compileinfo
-│   ├── Codesys_Simulation.Device.Application.xml
-│   └── Codesys_Simulation-*.opt     # Opciones de usuario/máquina
-├── Fluidsim/                        # Simulación OPC para FluidSim
+│   └── simulation_overview.png           # Vista isométrica de la celda robótica de ensamblaje
+├── CODESYS II/                           # Proyecto PLC (runtime CODESYS)
+│   ├── CODESYS SIMULATION II.project     # Archivo principal del proyecto CODESYS
+│   ├── CODESYS SIMULATION II.Device.Application.*.bootinfo
+│   ├── CODESYS SIMULATION II.Device.Application.*.compileinfo
+│   ├── CODESYS SIMULATION II.Device.Application.xml
+│   └── CODESYS SIMULATION II-*.opt       # Opciones de usuario/máquina
+├── Fluidsim/                             # Simulación OPC para FluidSim
 │   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
-│   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (579 líneas)
-│   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (688 líneas)
-│   ├── CarroPaletizador.cs          # Navegación del Paletizador — waypoints mecanum (163 líneas)
-│   ├── DronListo.cs                 # Unifica piezas del dron como un solo cuerpo rígido (39 líneas)
-│   ├── Ensamble.cs                  # Lógica snap para PCB / Tapa (144 líneas)
-│   ├── EnsambleGri.cs               # Lógica snap para Motores / Hélices (174 líneas)
-│   ├── Spawner.cs                   # Instancia prefabs y asigna refs de ensamble (32 líneas)
-│   ├── Produccion.cs                # Secuenciador de spawn con coroutine escalonado (56 líneas)
+│   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (601 líneas)
+│   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (836 líneas)
+│   ├── CarroPaletizador.cs          # Navegación del Paletizador — waypoints mecanum (330 líneas)
+│   ├── DronListo.cs                 # Unifica piezas del dron como un solo cuerpo rígido (69 líneas)
+│   ├── Ensamble.cs                  # Lógica snap para PCB / Tapa (156 líneas)
+│   ├── EnsambleGri.cs               # Lógica snap para Motores / Hélices (149 líneas)
+│   ├── Spawner.cs                   # Instancia prefabs y asigna refs de ensamble (39 líneas)
+│   ├── Produccion.cs                # Secuenciador de spawn con coroutine escalonado (298 líneas)
 │   ├── Angulos.cs                   # Controlador manual de ángulos de articulaciones (63 líneas)
-│   ├── CentrarBase.cs               # Centra la Base en el Transform destino al soltar (91 líneas)
+│   ├── CentrarBase.cs               # Centra la Base en el Transform destino al soltar (90 líneas)
+│   ├── RetiradorCarro.cs            # Adopta cajas como hijos cuando el carro se retira (92 líneas)
+│   ├── CerradorTapa.cs              # Cierre animado de tapa de caja con AnimationCurve (101 líneas)
+│   ├── DetectorDeposito.cs          # Detecta punto de depósito activo por trigger (34 líneas)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Mueve el carro a lo largo de un array de waypoints
+│   ├── MoverCajon.cs                # Mueve el carro a lo largo de un array de waypoints (29 líneas)
 │   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
@@ -1666,7 +1770,7 @@ drone-packaging-simulation-unity/
    - Los waypoints del Paletizador se asignan en el Inspector de `CarroPaletizador`
 
 5. **CODESYS / FluidSim** (opcional)
-   - Abrir `CODESYS/Codesys_Simulation.project` con CODESYS v3.5+
+   - Abrir `CODESYS II/CODESYS SIMULATION II.project` con CODESYS v3.5+
    - El archivo de simulación OPC para FluidSim está en `Fluidsim/OPC SIMULATION FLUIDSIM.ct`
 
 ---
