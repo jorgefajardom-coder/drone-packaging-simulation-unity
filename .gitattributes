@@ -1,0 +1,33 @@
+# Unity recommended .gitattributes
+* text=auto eol=lf
+
+# Unity YAML files — force text with LF
+*.cs        text eol=lf
+*.json      text eol=lf
+*.asmdef    text eol=lf
+*.unity     text eol=lf
+*.prefab    text eol=lf
+*.asset     text eol=lf
+*.meta      text eol=lf
+*.controller text eol=lf
+*.anim      text eol=lf
+*.mat       text eol=lf
+*.renderTexture text eol=lf
+*.overrideController text eol=lf
+
+# Binary files — never convert
+*.fbx       binary
+*.FBX       binary
+*.obj       binary
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.tga       binary
+*.psd       binary
+*.mp3       binary
+*.wav       binary
+*.mp4       binary
+*.dll       binary
+*.so        binary
+*.a         binary
+*.unitypackage binary
