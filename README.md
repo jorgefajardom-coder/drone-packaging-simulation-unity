@@ -226,14 +226,12 @@ stateDiagram-v2
     SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 OR EMERGENCIA=0
 
-    SISTEMA_ON --> LED_TEST : 1 s TON on startup
-    LED_TEST --> SISTEMA_ON : timer elapsed
-
-    SISTEMA_ON --> NEUMATICA_ON : on entry (STOP=1 + EMERGENCIA=1)
-    NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-
-    SISTEMA_ON --> VENTOSAS_ON : TCP_COMANDOS_VENTOSAS bit set
-    VENTOSAS_ON --> VENTOSAS_OFF : bit cleared OR SISTEMA_OFF
+    state SISTEMA_ON {
+        [*] --> LED_TEST
+        LED_TEST --> NEUMATICA_ON : 1 s TON elapsed
+        NEUMATICA_ON --> VENTOSAS_ON : TCP_COMANDOS_VENTOSAS bit set
+        VENTOSAS_ON --> NEUMATICA_ON : bit cleared
+    }
 ```
 
 | Condition | Effect |
@@ -1499,14 +1497,12 @@ stateDiagram-v2
     SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 O EMERGENCIA=0
 
-    SISTEMA_ON --> LED_TEST : TON 1s al arranque
-    LED_TEST --> SISTEMA_ON : timer expirado
-
-    SISTEMA_ON --> NEUMATICA_ON : al entrar (STOP=1 + EMERGENCIA=1)
-    NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-
-    SISTEMA_ON --> VENTOSAS_ON : bit TCP_COMANDOS_VENTOSAS activo
-    VENTOSAS_ON --> VENTOSAS_OFF : bit limpiado O SISTEMA_OFF
+    state SISTEMA_ON {
+        [*] --> LED_TEST
+        LED_TEST --> NEUMATICA_ON : TON 1s expirado
+        NEUMATICA_ON --> VENTOSAS_ON : bit TCP_COMANDOS_VENTOSAS activo
+        VENTOSAS_ON --> NEUMATICA_ON : bit limpiado
+    }
 ```
 
 | Condición | Efecto |
