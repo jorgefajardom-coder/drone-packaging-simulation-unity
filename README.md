@@ -1153,36 +1153,6 @@ while (t < 1f) {
 
 ---
 
-### Issue #6: Inconsistent Heights After Snap
-
-**Symptoms**:
-- Components at different heights after snap
-- Visual gaps or overlaps
-
-**Root Cause**:
-- **Incorrect pivots in exported prefabs**
-- Model origin doesn't match actual contact point
-- Generic sink offset without considering geometry
-
-**Solution**:
-1. **Correction in modeling software** (Blender/Fusion 360):
-   - Place pivot at lower contact point
-   - Export with "Apply Transform"
-
-2. **Compensation in Unity** (temporary):
-   ```csharp
-   // In Ensamble.cs - offsets per piece type
-   if (gameObject.name.Contains("Motor")) {
-       offsetHundimiento = -0.02f;
-   } else if (gameObject.name.Contains("PCB")) {
-       offsetHundimiento = -0.005f;
-   }
-   ```
-
-**Status**: ⚠️ Definitive correction pending in CAD prefabs.
-
----
-
 ## Bug Summary Table
 
 | # | Issue | Severity | Status | Solution |
@@ -1192,7 +1162,6 @@ while (t < 1f) {
 | 3 | Sequence race condition | 🟡 High | ✅ Resolved | Semaphore flag |
 | 4 | Propeller rotation | 🟡 High | ✅ Resolved | Absolute rotation by number |
 | 5 | Movement stuttering | 🟢 Medium | ✅ Resolved | Correct t accumulation |
-| 6 | Inconsistent heights | 🟡 High | ⚠️ Mitigated | Pending: CAD pivot correction |
 
 ---
 
@@ -2424,36 +2393,6 @@ while (t < 1f) {
 
 ---
 
-### Problema #6: Alturas Inconsistentes Post-Snap
-
-**Síntomas**:
-- Componentes a diferentes alturas después del snap
-- Gaps o superposiciones visuales
-
-**Causa Raíz**:
-- **Pivots incorrectos en prefabs exportados**
-- Origen del modelo no coincide con punto de contacto real
-- Offset de hundimiento genérico sin considerar geometría
-
-**Solución**:
-1. **Corrección en software de modelado** (Blender/Fusion 360):
-   - Ubicar pivot en el punto de contacto inferior
-   - Exportar con "Apply Transform"
-
-2. **Compensación en Unity** (temporal):
-   ```csharp
-   // En Ensamble.cs - offsets por tipo de pieza
-   if (gameObject.name.Contains("Motor")) {
-       offsetHundimiento = -0.02f;
-   } else if (gameObject.name.Contains("PCB")) {
-       offsetHundimiento = -0.005f;
-   }
-   ```
-
-**Estado**: ⚠️ Corrección definitiva pendiente en prefabs CAD.
-
----
-
 ## Tabla Resumen de Bugs
 
 | # | Bug | Severidad | Estado | Solución |
@@ -2463,7 +2402,6 @@ while (t < 1f) {
 | 3 | Race condition secuencias | 🟡 Alto | ✅ Resuelto | Flag semáforo |
 | 4 | Rotación hélices | 🟡 Alto | ✅ Resuelto | Rotación absoluta por número |
 | 5 | Stuttering movimiento | 🟢 Medio | ✅ Resuelto | Acumulación correcta de t |
-| 6 | Alturas inconsistentes | 🟡 Alto | ⚠️ Mitigado | Pending: corrección pivots CAD |
 
 ---
 
