@@ -34,7 +34,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Authors](#authors)
 - [License](#license-and-rights)
 
-> **13 C# scripts · 2,893 lines of code · 12 JSON pose files · Unity 2021.3.45f1 LTS**
+> **13 C# scripts · 2,893 lines of code · 12 JSON pose files**
 
 ---
 
@@ -118,7 +118,7 @@ The three layers communicate over two protocols: **TCP** (Unity ↔ CODESYS) and
 
 ```mermaid
 graph LR
-    subgraph UNITY["Unity 2021.3 LTS"]
+    subgraph UNITY["Unity"]
         U1[Ventosa.cs<br/>CarroPaletizador.cs]
         U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte each</i>]
         U1 -->|packs bits| U2
@@ -222,14 +222,18 @@ The three FluidSIM modules bridge CODESYS bytes to the physical circuit elements
 ```mermaid
 stateDiagram-v2
     [*] --> SISTEMA_OFF : power on
-    SISTEMA_OFF --> SISTEMA_ON : START rising edge\nAND STOP=1 AND EMERGENCIA=1
+
+    SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 OR EMERGENCIA=0
-    SISTEMA_ON --> LED_TEST : 1 s TON pulse on startup
-    LED_TEST --> SISTEMA_ON : timer elapsed (all LEDs cleared)
-    SISTEMA_ON --> NEUMATICA_ON : STOP=1 AND EMERGENCIA=1
+
+    SISTEMA_ON --> LED_TEST : 1 s TON on startup
+    LED_TEST --> SISTEMA_ON : timer elapsed
+
+    SISTEMA_ON --> NEUMATICA_ON : on entry (STOP=1 + EMERGENCIA=1)
     NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-    SISTEMA_ON --> VENTOSAS_ACTIVE : TCP_COMANDOS_VENTOSAS bits
-    VENTOSAS_ACTIVE --> VENTOSAS_OFF : SISTEMA_OFF
+
+    SISTEMA_ON --> VENTOSAS_ON : TCP_COMANDOS_VENTOSAS bit set
+    VENTOSAS_ON --> VENTOSAS_OFF : bit cleared OR SISTEMA_OFF
 ```
 
 | Condition | Effect |
@@ -349,7 +353,6 @@ graph TB
     B3 -->|transfers drone| B4
     B3 & B4 -->|"TCP/IP socket<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
     HW -->|"FluidSIM Out<br/>Module 2"| PLC
-    OPC -->|"FluidSIM In · Mod 1 & 3<br/>valve actuation · LED panels"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -382,43 +385,34 @@ sequenceDiagram
     participant D as Drone
 
     rect rgb(30, 80, 60)
-        Note over P,D: Phase 1 — Spawning (staggered 2s delays)
-        P->>D: spawn Base → PCB → Motors → Hélices → Tapa → Boxes
+        Note over P,D: Phase 1 — Spawning
+        Note over P: Boxes pre-spawned in Start() before assembly begins
+        P->>D: spawn Base → 1s → PCB → 1s → Motors 1+2 → 1s → Motors 3+4 → 1s → Hélices 1+2 → 2s → Hélices 3+4 → 2s → Tapa
     end
 
     rect rgb(25, 60, 90)
-        Note over A,D: Phase 2 — Assembly (each arm reads its own JSON)
-        A->>D: grip + place Base
-        Note right of A: CentrarBase.IniciarCentrado()
+        Note over A,D: Phase 2 — Assembly (arms start concurrently, each reads its own JSON)
+        A->>D: grip Base → CentrarBase.IniciarCentrado()
         W->>D: suction + snap PCB
 
-        par Alpha places motors (×2) and hélices (×2)
-            A->>D: snap Motor 1
-            A->>D: snap Motor 2
-            A->>D: snap Hélice 1
-            A->>D: snap Hélice 2
-        end
-
-        par Beta places motors (×2) and hélices (×2)
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
-            B->>D: snap Hélice 3
-            B->>D: snap Hélice 4
+        par Alpha assembles motors and hélices
+            A->>D: snap Motor 1, Motor 2, Hélice 1, Hélice 2
+        and Beta assembles motors and hélices
+            B->>D: snap Motor 3, Motor 4, Hélice 3, Hélice 4
         end
 
         W->>D: suction + snap Tapa
-
-        Note over D: DronListo.PrepararParaLevantamiento()
-        W->>PAL: transfer drone to staging zone
+        Note over D: DronListo auto-detects piezasEsperadas=10 reached → seals drone
+        W->>PAL: transfer sealed drone to staging zone
     end
 
     rect rgb(120, 60, 20)
-        Note over PAL: Phase 3 — Palletizing (CarroPaletizador loop)
+        Note over PAL: Phase 3 — Palletizing (EjecutarSecuencia loop)
         loop For each MovimientoPaletizado in movimientos list
-            PAL->>D: pick from staging zone (ventosa.TieneObjeto)
+            PAL->>D: pick drone (ventosa.TieneObjeto)
             PAL->>PAL: TrasladarA(zonaGiro) → GirarCarroSobrePunto(anguloGiro)
             PAL->>PAL: TrasladarConPivotRotado / TrasladarEnL(puntoDestino)
-            PAL->>D: permisoParaSoltar = true → arm deposits drone in box
+            PAL->>D: permisoParaSoltar=true → drone deposited in box
             PAL->>PAL: return to zonaGiro → GirarCarroSobrePunto(-anguloGiro)
             PAL->>PAL: TrasladarA(puntoInicio)
         end
@@ -1294,7 +1288,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 <br/>
 
 ![Vista general de la simulación](docs/simulation_overview.png)
-> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum. Unity 2021.3.45f1 LTS.*
+> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum.*
 
 </div>
 
@@ -1313,7 +1307,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Autores](#autores)
 - [Licencia](#licencia-y-derechos)
 
-> **13 scripts C# · 2.893 líneas de código · 12 archivos JSON de poses · Unity 2021.3.45f1 LTS**
+> **13 scripts C# · 2.893 líneas de código · 12 archivos JSON de poses**
 
 ---
 
@@ -1397,7 +1391,7 @@ Las tres capas se comunican mediante dos protocolos: **TCP/IP** (Unity ↔ CODES
 
 ```mermaid
 graph LR
-    subgraph UNITY["Unity 2021.3 LTS"]
+    subgraph UNITY["Unity"]
         U1[Ventosa.cs<br/>CarroPaletizador.cs]
         U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte cada una</i>]
         U1 -->|empaqueta bits| U2
@@ -1501,14 +1495,18 @@ graph LR
 ```mermaid
 stateDiagram-v2
     [*] --> SISTEMA_OFF : encendido
-    SISTEMA_OFF --> SISTEMA_ON : flanco START\nY STOP=1 Y EMERGENCIA=1
+
+    SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 O EMERGENCIA=0
-    SISTEMA_ON --> LED_TEST : pulso TON 1s al arranque
-    LED_TEST --> SISTEMA_ON : timer expirado (todos los LEDs apagados)
-    SISTEMA_ON --> NEUMATICA_ON : STOP=1 Y EMERGENCIA=1
+
+    SISTEMA_ON --> LED_TEST : TON 1s al arranque
+    LED_TEST --> SISTEMA_ON : timer expirado
+
+    SISTEMA_ON --> NEUMATICA_ON : al entrar (STOP=1 + EMERGENCIA=1)
     NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-    SISTEMA_ON --> VENTOSAS_ACTIVAS : bits TCP_COMANDOS_VENTOSAS
-    VENTOSAS_ACTIVAS --> VENTOSAS_OFF : SISTEMA_OFF
+
+    SISTEMA_ON --> VENTOSAS_ON : bit TCP_COMANDOS_VENTOSAS activo
+    VENTOSAS_ON --> VENTOSAS_OFF : bit limpiado O SISTEMA_OFF
 ```
 
 | Condición | Efecto |
@@ -1628,7 +1626,6 @@ graph TB
     B3 -->|transfiere dron| B4
     B3 & B4 -->|"Socket TCP/IP<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
     HW -->|"FluidSIM Out<br/>Módulo 2"| PLC
-    OPC -->|"FluidSIM In · Mód 1 & 3<br/>válvulas · paneles LED"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -1661,43 +1658,34 @@ sequenceDiagram
     participant D as Dron
 
     rect rgb(30, 80, 60)
-        Note over P,D: Fase 1 — Spawning (retrasos escalonados de 2s)
-        P->>D: spawn Base → PCB → Motores → Hélices → Tapa → Cajas
+        Note over P,D: Fase 1 — Spawn
+        Note over P: Cajas pre-spawneadas en Start() antes del ensamblaje
+        P->>D: Base → 1s → PCB → 1s → Motores 1+2 → 1s → Motores 3+4 → 1s → Hélices 1+2 → 2s → Hélices 3+4 → 2s → Tapa
     end
 
     rect rgb(25, 60, 90)
-        Note over A,D: Fase 2 — Ensamblaje (cada brazo lee su propio JSON)
-        A->>D: agarre + colocación Base
-        Note right of A: CentrarBase.IniciarCentrado()
+        Note over A,D: Fase 2 — Ensamblaje (brazos arrancan concurrentemente, cada uno lee su JSON)
+        A->>D: agarre Base → CentrarBase.IniciarCentrado()
         W->>D: ventosa + snap PCB
 
-        par Alpha coloca motores (×2) y hélices (×2)
-            A->>D: snap Motor 1
-            A->>D: snap Motor 2
-            A->>D: snap Hélice 1
-            A->>D: snap Hélice 2
-        end
-
-        par Beta coloca motores (×2) y hélices (×2)
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
-            B->>D: snap Hélice 3
-            B->>D: snap Hélice 4
+        par Alpha ensambla motores y hélices
+            A->>D: snap Motor 1, Motor 2, Hélice 1, Hélice 2
+        and Beta ensambla motores y hélices
+            B->>D: snap Motor 3, Motor 4, Hélice 3, Hélice 4
         end
 
         W->>D: ventosa + snap Tapa
-
-        Note over D: DronListo.PrepararParaLevantamiento()
-        W->>PAL: transfiere dron a zona de paletizado
+        Note over D: DronListo auto-detecta piezasEsperadas=10 → sella el dron
+        W->>PAL: transfiere dron sellado a zona de paletizado
     end
 
     rect rgb(120, 60, 20)
-        Note over PAL: Fase 3 — Paletizado (bucle CarroPaletizador)
+        Note over PAL: Fase 3 — Paletizado (bucle EjecutarSecuencia)
         loop Para cada MovimientoPaletizado en la lista movimientos
             PAL->>D: recoge dron (ventosa.TieneObjeto)
             PAL->>PAL: TrasladarA(zonaGiro) → GirarCarroSobrePunto(anguloGiro)
             PAL->>PAL: TrasladarConPivotRotado / TrasladarEnL(puntoDestino)
-            PAL->>D: permisoParaSoltar = true → brazo deposita en caja
+            PAL->>D: permisoParaSoltar=true → dron depositado en caja
             PAL->>PAL: regresa a zonaGiro → GirarCarroSobrePunto(-anguloGiro)
             PAL->>PAL: TrasladarA(puntoInicio)
         end
