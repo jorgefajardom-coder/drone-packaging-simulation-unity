@@ -34,7 +34,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Authors](#authors)
 - [License](#license-and-rights)
 
-> **13 C# scripts · 2,893 lines of code · 12 JSON pose files**
+> **13 C# scripts · 2,893 lines of code · 8 JSON pose files**
 
 ---
 
@@ -329,7 +329,7 @@ graph TB
     end
 
     subgraph JSON["Motion Data"]
-        JF[(JSON_Generados/<br/>12 pose files)]
+        JF[(StreamingAssets/<br/>8 pose files)]
     end
 
     subgraph ASSEMBLY["Assembly Cell"]
@@ -534,8 +534,8 @@ classDiagram
     CarroPaletizador --> Ventosa : drives paletizador
     GripperTrigger --> Brazos : OnTriggerEnter
     SuctionTrigger --> Ventosa : OnTriggerEnter
-    Brazos --> EnsambleGri : snap on grip
-    Ventosa --> Ensamble : snap on suction
+    Brazos --> EnsambleGri : snap on release
+    Ventosa --> Ensamble : snap on release
     Brazos --> CentrarBase : centers Base after release
     Produccion --> Spawner : manages
     Spawner ..> EnsambleGri : assigns baseParent
@@ -942,7 +942,7 @@ drone-packaging-simulation-unity/
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
-│   ├── JSON_Generados/              # 12 pose JSON files — each arm reads its own
+│   ├── JSON_Generados/              # 8 pose JSON files — each arm reads its own
 │   └── Scenes/
 │       └── SampleScene.unity
 ├── Packages/
@@ -1274,7 +1274,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Autores](#autores)
 - [Licencia](#licencia-y-derechos)
 
-> **13 scripts C# · 2.893 líneas de código · 12 archivos JSON de poses**
+> **13 scripts C# · 2.893 líneas de código · 8 archivos JSON de poses**
 
 ---
 
@@ -1569,7 +1569,7 @@ graph TB
     end
 
     subgraph JSON["Datos de Movimiento"]
-        JF[(JSON_Generados/<br/>12 archivos de poses)]
+        JF[(StreamingAssets/<br/>8 archivos de poses)]
     end
 
     subgraph ASSEMBLY["Celda de Ensamblaje"]
@@ -1774,8 +1774,8 @@ classDiagram
     CarroPaletizador --> Ventosa : conduce paletizador
     GripperTrigger --> Brazos : OnTriggerEnter
     SuctionTrigger --> Ventosa : OnTriggerEnter
-    Brazos --> EnsambleGri : snap al agarrar
-    Ventosa --> Ensamble : snap por succión
+    Brazos --> EnsambleGri : snap al soltar
+    Ventosa --> Ensamble : snap al soltar
     Brazos --> CentrarBase : centra Base al soltar
     Produccion --> Spawner : gestiona
     Spawner ..> EnsambleGri : asigna baseParent
@@ -2182,7 +2182,7 @@ drone-packaging-simulation-unity/
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
-│   ├── JSON_Generados/              # 12 archivos JSON de poses — cada brazo lee el suyo
+│   ├── JSON_Generados/              # 8 archivos JSON de poses — cada brazo lee el suyo
 │   └── Scenes/
 │       └── SampleScene.unity
 ├── Packages/
