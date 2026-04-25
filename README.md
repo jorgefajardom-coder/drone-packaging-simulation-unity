@@ -34,7 +34,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Authors](#authors)
 - [License](#license-and-rights)
 
-> **17 C# scripts · 3,101 lines of code · 12 JSON pose files · Unity 2021.3.45f1 LTS**
+> **13 C# scripts · 2,893 lines of code · 12 JSON pose files**
 
 ---
 
@@ -118,7 +118,7 @@ The three layers communicate over two protocols: **TCP** (Unity ↔ CODESYS) and
 
 ```mermaid
 graph LR
-    subgraph UNITY["Unity 2021.3 LTS"]
+    subgraph UNITY["Unity"]
         U1[Ventosa.cs<br/>CarroPaletizador.cs]
         U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte each</i>]
         U1 -->|packs bits| U2
@@ -222,14 +222,18 @@ The three FluidSIM modules bridge CODESYS bytes to the physical circuit elements
 ```mermaid
 stateDiagram-v2
     [*] --> SISTEMA_OFF : power on
-    SISTEMA_OFF --> SISTEMA_ON : START rising edge\nAND STOP=1 AND EMERGENCIA=1
+
+    SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 OR EMERGENCIA=0
-    SISTEMA_ON --> LED_TEST : 1 s TON pulse on startup
-    LED_TEST --> SISTEMA_ON : timer elapsed (all LEDs cleared)
-    SISTEMA_ON --> NEUMATICA_ON : STOP=1 AND EMERGENCIA=1
+
+    SISTEMA_ON --> LED_TEST : 1 s TON on startup
+    LED_TEST --> SISTEMA_ON : timer elapsed
+
+    SISTEMA_ON --> NEUMATICA_ON : on entry (STOP=1 + EMERGENCIA=1)
     NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-    SISTEMA_ON --> VENTOSAS_ACTIVE : TCP_COMANDOS_VENTOSAS bits
-    VENTOSAS_ACTIVE --> VENTOSAS_OFF : SISTEMA_OFF
+
+    SISTEMA_ON --> VENTOSAS_ON : TCP_COMANDOS_VENTOSAS bit set
+    VENTOSAS_ON --> VENTOSAS_OFF : bit cleared OR SISTEMA_OFF
 ```
 
 | Condition | Effect |
@@ -349,7 +353,6 @@ graph TB
     B3 -->|transfers drone| B4
     B3 & B4 -->|"TCP/IP socket<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
     HW -->|"FluidSIM Out<br/>Module 2"| PLC
-    OPC -->|"FluidSIM In · Mod 1 & 3<br/>valve actuation · LED panels"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -382,44 +385,37 @@ sequenceDiagram
     participant D as Drone
 
     rect rgb(30, 80, 60)
-        Note over P,D: Phase 1 — Spawning (staggered 2s delays)
-        P->>D: spawn Base → PCB → Motors → Hélices → Tapa → Boxes
+        Note over P,D: Phase 1 — Spawning
+        Note over P: Boxes pre-spawned in Start() before assembly begins
+        P->>D: spawn Base → 1s → PCB → 1s → Motors 1+2 → 1s → Motors 3+4 → 1s → Hélices 1+2 → 2s → Hélices 3+4 → 2s → Tapa
     end
 
     rect rgb(25, 60, 90)
-        Note over A,D: Phase 2 — Assembly (each arm reads its own JSON)
-        A->>D: grip + place Base
-        Note right of A: CentrarBase.IniciarCentrado()
+        Note over A,D: Phase 2 — Assembly (arms start concurrently, each reads its own JSON)
+        A->>D: grip Base → CentrarBase.IniciarCentrado()
         W->>D: suction + snap PCB
 
-        par Alpha places motors (×2) and hélices (×2)
-            A->>D: snap Motor 1
-            A->>D: snap Motor 2
-            A->>D: snap Hélice 1
-            A->>D: snap Hélice 2
-        end
-
-        par Beta places motors (×2) and hélices (×2)
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
-            B->>D: snap Hélice 3
-            B->>D: snap Hélice 4
+        par Alpha assembles motors and hélices
+            A->>D: snap Motor 1, Motor 2, Hélice 1, Hélice 2
+        and Beta assembles motors and hélices
+            B->>D: snap Motor 3, Motor 4, Hélice 3, Hélice 4
         end
 
         W->>D: suction + snap Tapa
-
-        Note over D: DronListo.PrepararParaLevantamiento()
-        W->>PAL: transfer drone to staging zone
+        Note over D: DronListo auto-detects piezasEsperadas=10 reached → seals drone
+        W->>PAL: transfer sealed drone to staging zone
     end
 
     rect rgb(120, 60, 20)
-        Note over PAL: Phase 3 — Palletizing (CarroPaletizador loop)
-        loop Cart 1 → Cart 2 (2 slots × 2 drones each)
-            PAL->>D: pick from staging zone
-            PAL->>PAL: IrA(puntoGiro) → IrA(destino)
-            PAL->>PAL: deposit in box
+        Note over PAL: Phase 3 — Palletizing (EjecutarSecuencia loop)
+        loop For each MovimientoPaletizado in movimientos list
+            PAL->>D: pick drone (ventosa.TieneObjeto)
+            PAL->>PAL: TrasladarA(zonaGiro) → GirarCarroSobrePunto(anguloGiro)
+            PAL->>PAL: TrasladarConPivotRotado / TrasladarEnL(puntoDestino)
+            PAL->>D: permisoParaSoltar=true → drone deposited in box
+            PAL->>PAL: return to zonaGiro → GirarCarroSobrePunto(-anguloGiro)
+            PAL->>PAL: TrasladarA(puntoInicio)
         end
-        PAL->>PAL: IrA(puntoInicio)
     end
 ```
 
@@ -463,21 +459,27 @@ classDiagram
     }
 
     class CarroPaletizador {
-        +Transform puntoInicio, puntoGiro
-        +Transform punto_1_1..punto_2_2
+        +Transform puntoInicio
+        +List~MovimientoPaletizado~ movimientos
         +Ventosa ventosa
         +float velocidadMovimiento
-        +float velocidadRotacion
-        -SecuenciaCompleta()
-        -EsperarAgarreYNavegar(Transform)
-        -SoltarYEsperar()
-        -IrA(Transform)
+        +float duracionGiro
+        +float duracionTrasladoFinal
+        +int totalDrones
+        +IniciarSecuenciaCarro()
+        -EjecutarSecuencia()
+        -TrasladarA(Transform, Transform)
+        -TrasladarConPivotRotado(Transform, Transform)
+        -TrasladarEnL(Transform, Transform, bool)
+        -GirarCarroSobrePunto(float, Transform)
     }
 
     class DronListo {
         +bool dronesListo
+        +int piezasEsperadas
         +PrepararParaLevantamiento()
         +SoltarDron()
+        -ContarPiezasEnsambladas()
     }
 
     class EnsambleGri {
@@ -506,6 +508,8 @@ classDiagram
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
         +Spawner[] spawnsCaja
+        +int dronesAProducir
+        +IEnumerator LoopProduccion()
         +IEnumerator SecuenciaEnsamblaje()
     }
 
@@ -538,7 +542,7 @@ classDiagram
     Produccion --> Spawner : manages
     Spawner ..> EnsambleGri : assigns baseParent
     Spawner ..> Ensamble : assigns puntoEnsamble
-    DronListo ..> Brazos : scene reference
+    DronListo ..> Ventosa : dronesListo flag read by Omega
 ```
 
 ---
@@ -687,10 +691,21 @@ Arm's own JSON file (Poses_*.json)
 
 ### 5. Drone Unification (`DronListo.cs`)
 
-Before Omega lifts the completed drone, all assembled parts must behave as a single rigid unit. `DronListo.cs` is attached to `BasePrefab` and handles this transition.
+Before Omega lifts the completed drone, all assembled parts must behave as a single rigid unit. `DronListo.cs` is attached to `BasePrefab` and handles this transition. It **auto-detects** assembly completion by counting child `Rigidbody` components against the configurable `piezasEsperadas` threshold (default 10 = PCB + 4 motors + 4 hélices + tapa), sealing the drone automatically without requiring external triggers.
 
 ```csharp
+// Auto-detection in Update()
+void Update() {
+    if (!yaSellado && !dronesListo) {
+        int piezasActuales = ContarPiezasEnsambladas();
+        if (piezasActuales >= piezasEsperadas)
+            PrepararParaLevantamiento();
+    }
+}
+
 public void PrepararParaLevantamiento() {
+    if (yaSellado) return;
+    yaSellado = true;
     dronesListo = true;
     foreach (Rigidbody rb in GetComponentsInChildren<Rigidbody>()) {
         if (rb.gameObject == this.gameObject) continue;
@@ -701,6 +716,7 @@ public void PrepararParaLevantamiento() {
 
 public void SoltarDron() {
     dronesListo = false;
+    yaSellado = false;
     foreach (Rigidbody rb in GetComponentsInChildren<Rigidbody>()) {
         if (rb.gameObject == this.gameObject) continue;
         rb.isKinematic = false;
@@ -713,31 +729,48 @@ public void SoltarDron() {
 
 ### 6. Palletizer Navigation (`CarroPaletizador.cs`)
 
-`CarroPaletizador.cs` manages the Paletizador's floor movement. The Paletizador arm (`Ventosa`) is a **child** of the cart GameObject, so the entire unit — arm + cart — moves together. Navigation moves in XZ only (Y stays fixed) and rotates on the Y axis toward each waypoint.
+`CarroPaletizador.cs` manages the Paletizador's floor movement. The Paletizador arm (`Ventosa`) is a **child** of the cart GameObject, so the entire unit — arm + cart — moves together. Navigation moves in XZ only (Y stays fixed). The cart rotates on the Y axis by pivoting around configurable `zonaGiro` points.
 
-**Waypoints** (defined as `Transform` references in the Inspector):
+**Movement configuration** — Inspector-defined `List<MovimientoPaletizado>`, one entry per drone. Each entry specifies:
 
-| Point | Purpose |
-|-------|---------|
-| `puntoInicio` | Starting / home position |
-| `puntoGiro` | Rotation waypoint — arm orients before travelling to delivery point |
-| `punto_1_1` | Cart 1, slot 1 |
-| `punto_1_2` | Cart 1, slot 2 |
-| `punto_2_1` | Cart 2, slot 1 |
-| `punto_2_2` | Cart 2, slot 2 |
+| Field | Type | Description |
+|-------|------|-------------|
+| `nombre` | `string` | Descriptive label (e.g. "Dron 1 → Punto1_1") |
+| `zonaGiro` | `Transform` | Pivot point — cart rotates around this position |
+| `anguloGiro` | `float` | Rotation angle on Y (-90° or +90°) |
+| `puntoDestino` | `Transform` | Final deposit position |
+| `patron` | `PatronMovimiento` | `Directo` (straight) or `EnL_XLuegoZ` (L-shaped path) |
 
-**Palletizing sequence** (coroutine):
+**Palletizing sequence per drone** (coroutine `EjecutarSecuencia`):
 ```
-Cart 1:
-  punto_1_1 → deposit drone 1 → deposit drone 2
-  punto_1_2 → deposit drone 1 → deposit drone 2
-Cart 2:
-  punto_2_1 → deposit drone 1 → deposit drone 2
-  punto_2_2 → deposit drone 1 → deposit drone 2
-Return to puntoInicio
+1. Wait until arm holds drone       (ventosa.TieneObjeto)
+2. TrasladarA(zonaGiro)             — translate to pivot zone
+3. GirarCarroSobrePunto(anguloGiro) — rotate around pivot on Y axis
+4. TrasladarConPivotRotado / TrasladarEnL(puntoDestino) — move to deposit
+5. permisoParaSoltar = true         — grant arm permission to release
+6. Wait until arm releases drone    (!ventosa.TieneObjeto)
+7. TrasladarConPivotRotado / TrasladarEnL(zonaGiro) — return to pivot
+8. GirarCarroSobrePunto(-anguloGiro)— un-rotate
+9. TrasladarA(puntoInicio)          — return home
 ```
 
-**Movement logic** (`IrA` coroutine): translates to XZ target → rotates to face destination on Y axis, both with configurable speed and tolerance.
+**Movement patterns**:
+
+| Pattern | Description |
+|---------|-------------|
+| `Directo` | Smooth Lerp directly to target (diagonal if X and Z differ) |
+| `EnL_XLuegoZ` | L-shaped: moves X axis first, then Z axis |
+
+**Key fields**:
+```csharp
+public Transform puntoInicio;                  // Home position
+public List<MovimientoPaletizado> movimientos; // One entry per drone
+public Ventosa ventosa;                        // Reference to arm script
+public float velocidadMovimiento = 1f;         // Translation speed (m/s)
+public float duracionGiro = 0.5f;              // Rotation duration (s)
+public float duracionTrasladoFinal = 0.5f;     // Translation duration (s)
+public int totalDrones = 0;                    // Synced from Produccion.cs
+```
 
 ---
 
@@ -779,22 +812,19 @@ public Vector3 rotacionForzada       = new Vector3(-90f, 0f, 0f);   // EnsambleG
 
 **Problem**: `PlaySequence()` and `ReleaseInSequence()` ran in parallel.
 
-**Solution: Boolean Semaphore** (in `Brazos.cs`):
+**Solution: Boolean Semaphore** (in `Ventosa.cs`):
 ```csharp
 private bool liberandoObjeto = false;
 
 IEnumerator LiberarEnSecuencia() {
     liberandoObjeto = true;
-    yield return new WaitForSeconds(tiempoPreSoltar);
-    // ... release object
-    yield return new WaitForSeconds(tiempoPostSoltar);
+    // ... lower to band or freeze animation
+    LiberarObjeto();
     liberandoObjeto = false;
 }
 
-IEnumerator ReproducirSecuencia() {
-    if (liberandoObjeto) {
-        yield return new WaitUntil(() => !liberandoObjeto);
-    }
+void ReproducirSecuencia() {
+    if (liberandoObjeto) return; // block sequence until release completes
     // ... execute pose
 }
 ```
@@ -803,27 +833,34 @@ IEnumerator ReproducirSecuencia() {
 
 ### 9. Production Spawner (`Produccion.cs`)
 
-Parts are not pre-placed in the scene — they are instantiated at runtime by `Produccion.cs` using individual `Spawner` components. Parts are spawned with staggered 2-second delays; boxes for the palletizer are all spawned simultaneously at the end.
+Parts are not pre-placed in the scene — they are instantiated at runtime by `Produccion.cs` using individual `Spawner` components. **Boxes** (`spawnsCaja`) are spawned once in `Start()` before any assembly begins, naming them `CajaPrefab(Clone1)` through `CajaPrefab(Clone8)`. **Assembly parts** are spawned per-drone via `SecuenciaEnsamblaje()` with staggered delays (1 s for base/PCB/motor pairs, 2 s for hélice pairs and tapa).
 
 ```csharp
+// Boxes are spawned once at Start(), before assembly begins
+void Start() {
+    for (int i = 0; i < spawnsCaja.Length; i++) {
+        GameObject caja = spawnsCaja[i].Spawn();
+        caja.name = "CajaPrefab(Clone" + (i + 1) + ")";
+    }
+    StartCoroutine(LoopProduccion());
+}
+
+// Per-drone assembly spawn sequence
 IEnumerator SecuenciaEnsamblaje() {
-    spawnBase.Spawn();
-    yield return new WaitForSeconds(2);
+    baseActual = spawnBase.Spawn();
+    yield return new WaitForSeconds(1);
     spawnPCB.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnMotor1.Spawn(); spawnMotor2.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnMotor3.Spawn(); spawnMotor4.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnHelice1.Spawn(); spawnHelice2.Spawn();
     yield return new WaitForSeconds(2);
     spawnHelice3.Spawn(); spawnHelice4.Spawn();
     yield return new WaitForSeconds(2);
     spawnTapa.Spawn();
     yield return new WaitForSeconds(2);
-    // All boxes at once
-    foreach (Spawner sc in spawnsCaja)
-        sc.Spawn();
 }
 ```
 
@@ -833,7 +870,7 @@ Each `Spawner` also auto-assigns `puntoEnsamble` (for `Ensamble`) and `baseParen
 
 ### 10. Box Lid Closure and Cart Retirement
 
-Three scripts handle the final packaging step after drones are deposited into boxes.
+Two scripts handle the final packaging step after drones are deposited into boxes.
 
 **`CerradorTapa.cs`** — Animates the box lid from an open pose to a closed pose using a configurable `AnimationCurve` (ease in/out by default). Exposes a `tapaCerrada` flag that other scripts can poll.
 
@@ -868,13 +905,12 @@ public void IntentarAdoptarCajas() {
 }
 ```
 
-**`DetectorDeposito.cs`** — A trigger-based sensor attached to the palletizer that detects which `PuntoDepositoDron` (deposit point child of a box) is currently inside the trigger zone. Exposes `PuntoActivo` and `CajaActiva` so `CarroPaletizador.cs` always knows the exact box and slot to target.
+After the drone is deposited, `CerradorTapa` closes the lid and then destroys the `BasePrefab(Clone)` inside the box to free memory. `RetiradorCarro` polls until the last box lid is closed before reparenting the boxes to the cart.
 
 | Script | Trigger | Key Output |
 |--------|---------|-----------|
-| `CerradorTapa.cs` | `CerrarTapa()` call | `tapaCerrada = true` |
+| `CerradorTapa.cs` | `CerrarTapa()` call | `tapaCerrada = true`, drone GameObject destroyed |
 | `RetiradorCarro.cs` | `IntentarAdoptarCajas()` call | boxes reparented to cart |
-| `DetectorDeposito.cs` | `OnTriggerEnter` | `PuntoActivo`, `CajaActiva` |
 
 ---
 
@@ -893,26 +929,21 @@ drone-packaging-simulation-unity/
 ├── Fluidsim/                             # OPC simulation for FluidSim
 │   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
-│   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (601 lines)
-│   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (836 lines)
-│   ├── CarroPaletizador.cs          # Paletizador floor navigation — mecanum waypoints (330 lines)
-│   ├── DronListo.cs                 # Unifies drone parts as single rigidbody before pickup (69 lines)
+│   ├── Brazos.cs                    # Gripper arm — Alpha, Beta (642 lines)
+│   ├── Ventosa.cs                   # Suction arm — Omega, Paletizador (856 lines)
+│   ├── CarroPaletizador.cs          # Paletizador floor navigation — configurable movement list (316 lines)
+│   ├── DronListo.cs                 # Unifies drone parts as single rigidbody, auto-detects completion (69 lines)
 │   ├── Ensamble.cs                  # Snap logic for PCB / Tapa (156 lines)
 │   ├── EnsambleGri.cs               # Snap logic for Motors / Hélices (149 lines)
 │   ├── Spawner.cs                   # Instantiates prefabs and assigns assembly refs (39 lines)
-│   ├── Produccion.cs                # Staggered coroutine spawn sequencer (298 lines)
-│   ├── Angulos.cs                   # Manual joint angle controller (debug/test) (63 lines)
+│   ├── Produccion.cs                # Production loop — staggered spawner + cart swap (355 lines)
 │   ├── CentrarBase.cs               # Centers Base on target Transform after release (90 lines)
-│   ├── RetiradorCarro.cs            # Adopts boxes as children when cart retires (92 lines)
-│   ├── CerradorTapa.cs              # Animated box lid closure with AnimationCurve (101 lines)
-│   ├── DetectorDeposito.cs          # Detects active deposit point via trigger (34 lines)
+│   ├── RetiradorCarro.cs            # Adopts boxes as children when cart retires (90 lines)
+│   ├── CerradorTapa.cs              # Animated box lid closure with AnimationCurve (93 lines)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Moves cart along a waypoint array (29 lines)
-│   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
-│   ├── New Animator Controller.*
 │   ├── JSON_Generados/              # 12 pose JSON files — each arm reads its own
 │   └── Scenes/
 │       └── SampleScene.unity
@@ -1257,7 +1288,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 <br/>
 
 ![Vista general de la simulación](docs/simulation_overview.png)
-> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum. Unity 2021.3.45f1 LTS.*
+> *Vista isométrica de la celda robótica de ensamblaje — 4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum.*
 
 </div>
 
@@ -1276,7 +1307,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Autores](#autores)
 - [Licencia](#licencia-y-derechos)
 
-> **17 scripts C# · 3.101 líneas de código · 12 archivos JSON de poses · Unity 2021.3.45f1 LTS**
+> **13 scripts C# · 2.893 líneas de código · 12 archivos JSON de poses**
 
 ---
 
@@ -1360,7 +1391,7 @@ Las tres capas se comunican mediante dos protocolos: **TCP/IP** (Unity ↔ CODES
 
 ```mermaid
 graph LR
-    subgraph UNITY["Unity 2021.3 LTS"]
+    subgraph UNITY["Unity"]
         U1[Ventosa.cs<br/>CarroPaletizador.cs]
         U2[TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte cada una</i>]
         U1 -->|empaqueta bits| U2
@@ -1464,14 +1495,18 @@ graph LR
 ```mermaid
 stateDiagram-v2
     [*] --> SISTEMA_OFF : encendido
-    SISTEMA_OFF --> SISTEMA_ON : flanco START\nY STOP=1 Y EMERGENCIA=1
+
+    SISTEMA_OFF --> SISTEMA_ON : START↑ + STOP=1 + EMERGENCIA=1
     SISTEMA_ON --> SISTEMA_OFF : STOP=0 O EMERGENCIA=0
-    SISTEMA_ON --> LED_TEST : pulso TON 1s al arranque
-    LED_TEST --> SISTEMA_ON : timer expirado (todos los LEDs apagados)
-    SISTEMA_ON --> NEUMATICA_ON : STOP=1 Y EMERGENCIA=1
+
+    SISTEMA_ON --> LED_TEST : TON 1s al arranque
+    LED_TEST --> SISTEMA_ON : timer expirado
+
+    SISTEMA_ON --> NEUMATICA_ON : al entrar (STOP=1 + EMERGENCIA=1)
     NEUMATICA_ON --> NEUMATICA_OFF : SISTEMA_OFF
-    SISTEMA_ON --> VENTOSAS_ACTIVAS : bits TCP_COMANDOS_VENTOSAS
-    VENTOSAS_ACTIVAS --> VENTOSAS_OFF : SISTEMA_OFF
+
+    SISTEMA_ON --> VENTOSAS_ON : bit TCP_COMANDOS_VENTOSAS activo
+    VENTOSAS_ON --> VENTOSAS_OFF : bit limpiado O SISTEMA_OFF
 ```
 
 | Condición | Efecto |
@@ -1591,7 +1626,6 @@ graph TB
     B3 -->|transfiere dron| B4
     B3 & B4 -->|"Socket TCP/IP<br/>TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS"| PLC
     HW -->|"FluidSIM Out<br/>Módulo 2"| PLC
-    OPC -->|"FluidSIM In · Mód 1 & 3<br/>válvulas · paneles LED"| OPC
 
     style B1 fill:#1D9E75,stroke:#085041,color:#fff
     style B2 fill:#1D9E75,stroke:#085041,color:#fff
@@ -1624,44 +1658,37 @@ sequenceDiagram
     participant D as Dron
 
     rect rgb(30, 80, 60)
-        Note over P,D: Fase 1 — Spawning (retrasos escalonados de 2s)
-        P->>D: spawn Base → PCB → Motores → Hélices → Tapa → Cajas
+        Note over P,D: Fase 1 — Spawn
+        Note over P: Cajas pre-spawneadas en Start() antes del ensamblaje
+        P->>D: Base → 1s → PCB → 1s → Motores 1+2 → 1s → Motores 3+4 → 1s → Hélices 1+2 → 2s → Hélices 3+4 → 2s → Tapa
     end
 
     rect rgb(25, 60, 90)
-        Note over A,D: Fase 2 — Ensamblaje (cada brazo lee su propio JSON)
-        A->>D: agarre + colocación Base
-        Note right of A: CentrarBase.IniciarCentrado()
+        Note over A,D: Fase 2 — Ensamblaje (brazos arrancan concurrentemente, cada uno lee su JSON)
+        A->>D: agarre Base → CentrarBase.IniciarCentrado()
         W->>D: ventosa + snap PCB
 
-        par Alpha coloca motores (×2) y hélices (×2)
-            A->>D: snap Motor 1
-            A->>D: snap Motor 2
-            A->>D: snap Hélice 1
-            A->>D: snap Hélice 2
-        end
-
-        par Beta coloca motores (×2) y hélices (×2)
-            B->>D: snap Motor 3
-            B->>D: snap Motor 4
-            B->>D: snap Hélice 3
-            B->>D: snap Hélice 4
+        par Alpha ensambla motores y hélices
+            A->>D: snap Motor 1, Motor 2, Hélice 1, Hélice 2
+        and Beta ensambla motores y hélices
+            B->>D: snap Motor 3, Motor 4, Hélice 3, Hélice 4
         end
 
         W->>D: ventosa + snap Tapa
-
-        Note over D: DronListo.PrepararParaLevantamiento()
-        W->>PAL: transfiere dron a zona de paletizado
+        Note over D: DronListo auto-detecta piezasEsperadas=10 → sella el dron
+        W->>PAL: transfiere dron sellado a zona de paletizado
     end
 
     rect rgb(120, 60, 20)
-        Note over PAL: Fase 3 — Paletizado (bucle CarroPaletizador)
-        loop Carro 1 → Carro 2 (2 slots × 2 drones c/u)
-            PAL->>D: recoge de zona de paletizado
-            PAL->>PAL: IrA(puntoGiro) → IrA(destino)
-            PAL->>PAL: deposita en caja
+        Note over PAL: Fase 3 — Paletizado (bucle EjecutarSecuencia)
+        loop Para cada MovimientoPaletizado en la lista movimientos
+            PAL->>D: recoge dron (ventosa.TieneObjeto)
+            PAL->>PAL: TrasladarA(zonaGiro) → GirarCarroSobrePunto(anguloGiro)
+            PAL->>PAL: TrasladarConPivotRotado / TrasladarEnL(puntoDestino)
+            PAL->>D: permisoParaSoltar=true → dron depositado en caja
+            PAL->>PAL: regresa a zonaGiro → GirarCarroSobrePunto(-anguloGiro)
+            PAL->>PAL: TrasladarA(puntoInicio)
         end
-        PAL->>PAL: IrA(puntoInicio)
     end
 ```
 
@@ -1705,21 +1732,27 @@ classDiagram
     }
 
     class CarroPaletizador {
-        +Transform puntoInicio, puntoGiro
-        +Transform punto_1_1..punto_2_2
+        +Transform puntoInicio
+        +List~MovimientoPaletizado~ movimientos
         +Ventosa ventosa
         +float velocidadMovimiento
-        +float velocidadRotacion
-        -SecuenciaCompleta()
-        -EsperarAgarreYNavegar(Transform)
-        -SoltarYEsperar()
-        -IrA(Transform)
+        +float duracionGiro
+        +float duracionTrasladoFinal
+        +int totalDrones
+        +IniciarSecuenciaCarro()
+        -EjecutarSecuencia()
+        -TrasladarA(Transform, Transform)
+        -TrasladarConPivotRotado(Transform, Transform)
+        -TrasladarEnL(Transform, Transform, bool)
+        -GirarCarroSobrePunto(float, Transform)
     }
 
     class DronListo {
         +bool dronesListo
+        +int piezasEsperadas
         +PrepararParaLevantamiento()
         +SoltarDron()
+        -ContarPiezasEnsambladas()
     }
 
     class EnsambleGri {
@@ -1748,6 +1781,8 @@ classDiagram
         +Spawner spawnHelice1..4
         +Spawner spawnTapa
         +Spawner[] spawnsCaja
+        +int dronesAProducir
+        +IEnumerator LoopProduccion()
         +IEnumerator SecuenciaEnsamblaje()
     }
 
@@ -1780,7 +1815,7 @@ classDiagram
     Produccion --> Spawner : gestiona
     Spawner ..> EnsambleGri : asigna baseParent
     Spawner ..> Ensamble : asigna puntoEnsamble
-    DronListo ..> Brazos : referencia en escena
+    DronListo ..> Ventosa : flag dronesListo leído por Omega
 ```
 
 ---
@@ -1929,10 +1964,21 @@ Archivo JSON propio (Poses_*.json)
 
 ### 5. Unificación del Dron (`DronListo.cs`)
 
-Antes de que Omega levante el dron completo, todas las piezas ensambladas deben comportarse como una sola unidad rígida. `DronListo.cs` se adjunta a `BasePrefab` y gestiona esta transición.
+Antes de que Omega levante el dron completo, todas las piezas ensambladas deben comportarse como una sola unidad rígida. `DronListo.cs` se adjunta a `BasePrefab` y gestiona esta transición. **Auto-detecta** el ensamblaje completo contando componentes `Rigidbody` hijos y comparándolos contra el umbral configurable `piezasEsperadas` (por defecto 10 = PCB + 4 motores + 4 hélices + tapa), sellando el dron automáticamente sin necesidad de triggers externos.
 
 ```csharp
+// Auto-detección en Update()
+void Update() {
+    if (!yaSellado && !dronesListo) {
+        int piezasActuales = ContarPiezasEnsambladas();
+        if (piezasActuales >= piezasEsperadas)
+            PrepararParaLevantamiento();
+    }
+}
+
 public void PrepararParaLevantamiento() {
+    if (yaSellado) return;
+    yaSellado = true;
     dronesListo = true;
     foreach (Rigidbody rb in GetComponentsInChildren<Rigidbody>()) {
         if (rb.gameObject == this.gameObject) continue;
@@ -1943,6 +1989,7 @@ public void PrepararParaLevantamiento() {
 
 public void SoltarDron() {
     dronesListo = false;
+    yaSellado = false;
     foreach (Rigidbody rb in GetComponentsInChildren<Rigidbody>()) {
         if (rb.gameObject == this.gameObject) continue;
         rb.isKinematic = false;
@@ -1955,31 +2002,48 @@ public void SoltarDron() {
 
 ### 6. Navegación del Paletizador (`CarroPaletizador.cs`)
 
-`CarroPaletizador.cs` gestiona el movimiento del Paletizador por el suelo. El brazo Paletizador (`Ventosa`) es un **hijo** del GameObject del carro, por lo que toda la unidad — brazo + carro — se desplaza junta. La navegación se realiza solo en XZ (Y permanece fijo) y rota en el eje Y hacia cada waypoint.
+`CarroPaletizador.cs` gestiona el movimiento del Paletizador por el suelo. El brazo Paletizador (`Ventosa`) es un **hijo** del GameObject del carro, por lo que toda la unidad — brazo + carro — se desplaza junta. La navegación se realiza solo en XZ (Y permanece fijo). El carro rota en el eje Y pivotando alrededor de puntos `zonaGiro` configurables.
 
-**Waypoints** (definidos como referencias `Transform` en el Inspector):
+**Configuración de movimientos** — `List<MovimientoPaletizado>` definida en el Inspector, una entrada por dron. Cada entrada especifica:
 
-| Punto | Propósito |
-|-------|-----------|
-| `puntoInicio` | Posición de inicio / home |
-| `puntoGiro` | Waypoint de rotación — el brazo se orienta antes de viajar al punto de entrega |
-| `punto_1_1` | Carro 1, slot 1 |
-| `punto_1_2` | Carro 1, slot 2 |
-| `punto_2_1` | Carro 2, slot 1 |
-| `punto_2_2` | Carro 2, slot 2 |
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `nombre` | `string` | Etiqueta descriptiva (ej: "Dron 1 → Punto1_1") |
+| `zonaGiro` | `Transform` | Punto pivote — el carro gira alrededor de esta posición |
+| `anguloGiro` | `float` | Ángulo de rotación en Y (-90° o +90°) |
+| `puntoDestino` | `Transform` | Posición final de depósito |
+| `patron` | `PatronMovimiento` | `Directo` (recto) o `EnL_XLuegoZ` (trayectoria en L) |
 
-**Secuencia de paletizado** (coroutine):
+**Secuencia de paletizado por dron** (coroutine `EjecutarSecuencia`):
 ```
-Carro 1:
-  punto_1_1 → deposita dron 1 → deposita dron 2
-  punto_1_2 → deposita dron 1 → deposita dron 2
-Carro 2:
-  punto_2_1 → deposita dron 1 → deposita dron 2
-  punto_2_2 → deposita dron 1 → deposita dron 2
-Regresa a puntoInicio
+1. Esperar a que el brazo agarre el dron  (ventosa.TieneObjeto)
+2. TrasladarA(zonaGiro)                   — trasladarse al pivote
+3. GirarCarroSobrePunto(anguloGiro)       — rotar en Y alrededor del pivote
+4. TrasladarConPivotRotado / TrasladarEnL(puntoDestino)  — ir al depósito
+5. permisoParaSoltar = true               — habilitar al brazo para soltar
+6. Esperar hasta que el brazo suelte      (!ventosa.TieneObjeto)
+7. TrasladarConPivotRotado / TrasladarEnL(zonaGiro)  — regresar al pivote
+8. GirarCarroSobrePunto(-anguloGiro)      — desgirar
+9. TrasladarA(puntoInicio)               — regresar al home
 ```
 
-**Lógica de movimiento** (coroutine `IrA`): traslada al objetivo XZ → rota para orientarse hacia el destino en el eje Y, ambos con velocidad y tolerancia configurables.
+**Patrones de movimiento**:
+
+| Patrón | Descripción |
+|--------|-------------|
+| `Directo` | Lerp suave directo al objetivo (diagonal si X y Z difieren) |
+| `EnL_XLuegoZ` | En L: mueve primero el eje X, luego el eje Z |
+
+**Campos clave**:
+```csharp
+public Transform puntoInicio;                  // Posición home
+public List<MovimientoPaletizado> movimientos; // Una entrada por dron
+public Ventosa ventosa;                        // Referencia al script del brazo
+public float velocidadMovimiento = 1f;         // Velocidad de traslación (m/s)
+public float duracionGiro = 0.5f;              // Duración de rotación (s)
+public float duracionTrasladoFinal = 0.5f;     // Duración de traslado (s)
+public int totalDrones = 0;                    // Sincronizado desde Produccion.cs
+```
 
 ---
 
@@ -2021,22 +2085,19 @@ public Vector3 rotacionForzada       = new Vector3(-90f, 0f, 0f);   // EnsambleG
 
 **Problema**: `ReproducirSecuencia()` y `LiberarEnSecuencia()` corrían en paralelo.
 
-**Solución: Semáforo Booleano** (en `Brazos.cs`):
+**Solución: Semáforo Booleano** (en `Ventosa.cs`):
 ```csharp
 private bool liberandoObjeto = false;
 
 IEnumerator LiberarEnSecuencia() {
     liberandoObjeto = true;
-    yield return new WaitForSeconds(tiempoPreSoltar);
-    // ... soltar objeto
-    yield return new WaitForSeconds(tiempoPostSoltar);
+    // ... animación de bajada a banda o congelado
+    LiberarObjeto();
     liberandoObjeto = false;
 }
 
-IEnumerator ReproducirSecuencia() {
-    if (liberandoObjeto) {
-        yield return new WaitUntil(() => !liberandoObjeto);
-    }
+void ReproducirSecuencia() {
+    if (liberandoObjeto) return; // bloquea la secuencia hasta que la liberación termine
     // ... ejecutar pose
 }
 ```
@@ -2045,27 +2106,34 @@ IEnumerator ReproducirSecuencia() {
 
 ### 9. Spawner de Producción (`Produccion.cs`)
 
-Las piezas no se pre-colocan en la escena — se instancian en tiempo de ejecución por `Produccion.cs` usando componentes `Spawner` individuales. Las piezas se instancian con retrasos escalonados de 2 segundos; las cajas del paletizador se instancian todas simultáneamente al finalizar.
+Las piezas no se pre-colocan en la escena — se instancian en tiempo de ejecución por `Produccion.cs` usando componentes `Spawner` individuales. Las **cajas** (`spawnsCaja`) se instancian una sola vez en `Start()` antes de que comience el ensamblaje, nombrándolas `CajaPrefab(Clone1)` hasta `CajaPrefab(Clone8)`. Las **piezas de ensamblaje** se instancian por dron en `SecuenciaEnsamblaje()` con retrasos escalonados (1 s para base/PCB/pares de motores, 2 s para pares de hélices y tapa).
 
 ```csharp
+// Las cajas se instancian una vez en Start(), antes del ensamblaje
+void Start() {
+    for (int i = 0; i < spawnsCaja.Length; i++) {
+        GameObject caja = spawnsCaja[i].Spawn();
+        caja.name = "CajaPrefab(Clone" + (i + 1) + ")";
+    }
+    StartCoroutine(LoopProduccion());
+}
+
+// Secuencia de spawn por dron
 IEnumerator SecuenciaEnsamblaje() {
-    spawnBase.Spawn();
-    yield return new WaitForSeconds(2);
+    baseActual = spawnBase.Spawn();
+    yield return new WaitForSeconds(1);
     spawnPCB.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnMotor1.Spawn(); spawnMotor2.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnMotor3.Spawn(); spawnMotor4.Spawn();
-    yield return new WaitForSeconds(2);
+    yield return new WaitForSeconds(1);
     spawnHelice1.Spawn(); spawnHelice2.Spawn();
     yield return new WaitForSeconds(2);
     spawnHelice3.Spawn(); spawnHelice4.Spawn();
     yield return new WaitForSeconds(2);
     spawnTapa.Spawn();
     yield return new WaitForSeconds(2);
-    // Todas las cajas al mismo tiempo
-    foreach (Spawner sc in spawnsCaja)
-        sc.Spawn();
 }
 ```
 
@@ -2075,7 +2143,7 @@ Cada `Spawner` también asigna automáticamente `puntoEnsamble` (para `Ensamble`
 
 ### 10. Cierre de Tapa y Retiro de Carro
 
-Tres scripts gestionan el paso final de empaquetado después de que los drones son depositados en las cajas.
+Dos scripts gestionan el paso final de empaquetado después de que los drones son depositados en las cajas.
 
 **`CerradorTapa.cs`** — Anima la tapa de la caja desde una pose abierta hasta una pose cerrada usando una `AnimationCurve` configurable (ease in/out por defecto). Expone un flag `tapaCerrada` que otros scripts pueden consultar.
 
@@ -2110,13 +2178,12 @@ public void IntentarAdoptarCajas() {
 }
 ```
 
-**`DetectorDeposito.cs`** — Un sensor basado en trigger adjunto al paletizador que detecta qué `PuntoDepositoDron` (punto hijo de una caja) está actualmente dentro de la zona de trigger. Expone `PuntoActivo` y `CajaActiva` para que `CarroPaletizador.cs` siempre sepa la caja y el slot exactos a los que apuntar.
+Tras depositar el dron, `CerradorTapa` cierra la tapa y luego destruye el GameObject `BasePrefab(Clone)` dentro de la caja para liberar memoria. `RetiradorCarro` espera hasta que la tapa de la última caja esté cerrada antes de reparentear las cajas al carro.
 
 | Script | Trigger | Salida Clave |
 |--------|---------|-------------|
-| `CerradorTapa.cs` | Llamada a `CerrarTapa()` | `tapaCerrada = true` |
+| `CerradorTapa.cs` | Llamada a `CerrarTapa()` | `tapaCerrada = true`, GameObject del dron destruido |
 | `RetiradorCarro.cs` | Llamada a `IntentarAdoptarCajas()` | cajas reparentadas al carro |
-| `DetectorDeposito.cs` | `OnTriggerEnter` | `PuntoActivo`, `CajaActiva` |
 
 ---
 
@@ -2135,26 +2202,21 @@ drone-packaging-simulation-unity/
 ├── Fluidsim/                             # Simulación OPC para FluidSim
 │   └── OPC SIMULATION FLUIDSIM.ct
 ├── Assets/
-│   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (601 líneas)
-│   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (836 líneas)
-│   ├── CarroPaletizador.cs          # Navegación del Paletizador — waypoints mecanum (330 líneas)
-│   ├── DronListo.cs                 # Unifica piezas del dron como un solo cuerpo rígido (69 líneas)
+│   ├── Brazos.cs                    # Brazo gripper — Alpha, Beta (642 líneas)
+│   ├── Ventosa.cs                   # Brazo ventosa — Omega, Paletizador (856 líneas)
+│   ├── CarroPaletizador.cs          # Navegación del Paletizador — lista de movimientos configurable (316 líneas)
+│   ├── DronListo.cs                 # Unifica piezas, auto-detecta ensamblaje completo (69 líneas)
 │   ├── Ensamble.cs                  # Lógica snap para PCB / Tapa (156 líneas)
 │   ├── EnsambleGri.cs               # Lógica snap para Motores / Hélices (149 líneas)
 │   ├── Spawner.cs                   # Instancia prefabs y asigna refs de ensamble (39 líneas)
-│   ├── Produccion.cs                # Secuenciador de spawn con coroutine escalonado (298 líneas)
-│   ├── Angulos.cs                   # Controlador manual de ángulos de articulaciones (63 líneas)
+│   ├── Produccion.cs                # Bucle de producción — spawn escalonado + swap de carros (355 líneas)
 │   ├── CentrarBase.cs               # Centra la Base en el Transform destino al soltar (90 líneas)
-│   ├── RetiradorCarro.cs            # Adopta cajas como hijos cuando el carro se retira (92 líneas)
-│   ├── CerradorTapa.cs              # Cierre animado de tapa de caja con AnimationCurve (101 líneas)
-│   ├── DetectorDeposito.cs          # Detecta punto de depósito activo por trigger (34 líneas)
+│   ├── RetiradorCarro.cs            # Adopta cajas como hijos cuando el carro se retira (90 líneas)
+│   ├── CerradorTapa.cs              # Cierre animado de tapa de caja con AnimationCurve (93 líneas)
 │   ├── GripperTrigger.cs            # OnTriggerEnter → Brazos.NotifyObjectInside()
 │   ├── SuctionTrigger.cs            # OnTriggerEnter → Ventosa.NotifyObjectInside()
-│   ├── MoverCajon.cs                # Mueve el carro a lo largo de un array de waypoints (29 líneas)
-│   ├── Cian.mat
 │   ├── CV_1.renderTexture
 │   ├── CV_5.renderTexture
-│   ├── New Animator Controller.*
 │   ├── JSON_Generados/              # 12 archivos JSON de poses — cada brazo lee el suyo
 │   └── Scenes/
 │       └── SampleScene.unity
