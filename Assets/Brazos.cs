@@ -386,74 +386,74 @@ public class Brazos : MonoBehaviour
 
         RobotPose p = poses[currentPoseIndex];
 
-// Mover articulaciones
-SmoothX(Waist, p.waist);
-SmoothZ(Arm01, p.arm01);
-SmoothZ(Arm02, p.arm02);
-SmoothX(Arm03, p.arm03);
-SmoothZ(GripperAssembly, p.gripperAssembly);
+        // Mover articulaciones
+        SmoothX(Waist, p.waist);
+        SmoothZ(Arm01, p.arm01);
+        SmoothZ(Arm02, p.arm02);
+        SmoothX(Arm03, p.arm03);
+        SmoothZ(GripperAssembly, p.gripperAssembly);
 
-// Mover gripper
-float gripTarget = p.gripperClosed ? p.gripperClosedAngle : p.gripperOpenAngle;
-if (Gear1) SmoothX(Gear1, gripTarget);
-if (Gear2) SmoothX(Gear2, -gripTarget);
+        // Mover gripper
+        float gripTarget = p.gripperClosed ? p.gripperClosedAngle : p.gripperOpenAngle;
+        if (Gear1) SmoothX(Gear1, gripTarget);
+        if (Gear2) SmoothX(Gear2, -gripTarget);
 
-// Caso AGARRAR: pose con gripper cerrado y sin objeto agarrado
-if (p.gripperClosed && grabbedObject == null)
-{
-    if (Llegamos(p))
-    {
-        // Intentar agarrar si hay objeto en el trigger
-        if (objectInside != null)
-            AgarrarObjeto();
-
-        // No avanzar hasta confirmar agarre real
-        if (grabbedObject == null) return;
-
-        currentPoseIndex++;
-        if (p.delay > 0f)
+        // Caso AGARRAR: pose con gripper cerrado y sin objeto agarrado
+        if (p.gripperClosed && grabbedObject == null)
         {
-            esperandoPose = true;
-            timerPose = 0f;
-        }
-    }
-    return;
-}
+            if (Llegamos(p))
+            {
+                // Intentar agarrar si hay objeto en el trigger
+                if (objectInside != null)
+                    AgarrarObjeto();
 
-// Caso SOLTAR: pose con gripper abierto y objeto agarrado
-if (!p.gripperClosed && grabbedObject != null)
-{
-    if (Llegamos(p))
-    {
-        LiberarObjeto();
-        currentPoseIndex++;
-        if (p.delay > 0f)
+                // No avanzar hasta confirmar agarre real
+                if (grabbedObject == null) return;
+
+                currentPoseIndex++;
+                if (p.delay > 0f)
+                {
+                    esperandoPose = true;
+                    timerPose = 0f;
+                }
+            }
+            return;
+        }
+
+        // Caso SOLTAR: pose con gripper abierto y objeto agarrado
+        if (!p.gripperClosed && grabbedObject != null)
         {
-            esperandoPose = true;
-            timerPose = 0f;
+            if (Llegamos(p))
+            {
+                LiberarObjeto();
+                currentPoseIndex++;
+                if (p.delay > 0f)
+                {
+                    esperandoPose = true;
+                    timerPose = 0f;
+                }
+            }
+            return;
         }
-    }
-    return;
-}
 
-// Mantener pegado si está agarrado (durante movimiento normal)
-if (grabbedObject != null && p.gripperClosed)
-{
-    grabbedObject.transform.localPosition = grabLocalOffset;
-    grabbedObject.transform.localRotation = grabLocalRotOffset;
-}
+        // Mantener pegado si está agarrado (durante movimiento normal)
+        if (grabbedObject != null && p.gripperClosed)
+        {
+            grabbedObject.transform.localPosition = grabLocalOffset;
+            grabbedObject.transform.localRotation = grabLocalRotOffset;
+        }
 
-// Caso MOVIMIENTO normal (sin cambio de gripper ni agarre/soltar pendiente)
-if (Llegamos(p))
-{
-    currentPoseIndex++;
+        // Caso MOVIMIENTO normal (sin cambio de gripper ni agarre/soltar pendiente)
+        if (Llegamos(p))
+        {
+            currentPoseIndex++;
 
-    if (p.delay > 0f)
-    {
-        esperandoPose = true;
-        timerPose = 0f;
-    }
-}
+            if (p.delay > 0f)
+            {
+                esperandoPose = true;
+                timerPose = 0f;
+            }
+        }
     }
 
     bool Llegamos(RobotPose p)
@@ -556,7 +556,6 @@ if (Llegamos(p))
             string json = JsonUtility.ToJson(c, true);
             string fullPath = GetFullSavePath();
             File.WriteAllText(fullPath, json);
-            Debug.Log("Poses guardadas en: " + fullPath);
 
 #if UNITY_EDITOR
             string jsonFileName = saveFileName;

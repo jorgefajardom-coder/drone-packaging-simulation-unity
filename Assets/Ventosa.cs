@@ -64,10 +64,9 @@ public class Ventosa : MonoBehaviour
 
     public bool dronDepositado = false;
 
-    // Contador interno de drones soltados en esta corrida
     private int dronesSoltados = 0;
 
-    [Tooltip("Delay en segundos entre el emparentado del dron y el inicio del cierre de la tapa. Útil para dar tiempo a que el brazo se retire.")]
+    [Tooltip("Delay en segundos entre el emparentado del dron y el inicio del cierre de la tapa.")]
     public float delayCierreTapa = 1f;
 
     [Header("Configuración de liberación")]
@@ -171,13 +170,10 @@ public class Ventosa : MonoBehaviour
             return;
         }
 
-        // CORRECTO:
         if (!jugandoSecuencia)
             MoverManual();
         else
-        {
             ReproducirSecuencia();
-        }
 
         ProcesarSuccion();
 
@@ -279,8 +275,6 @@ public class Ventosa : MonoBehaviour
     {
         if (grabbedObject == null) return;
 
-        Debug.Log($"🎯 [{gameObject.name}] LiberarObjeto → usarSecuencia={usarSecuenciaDeCajas}, dronesSoltados={dronesSoltados}, emparentar={emparentarACaja}");
-
         string nombreObjeto = grabbedObject.name;
         bool esDronCompleto = grabbedObject.name.Contains("Dron") ||
                               grabbedObject.name.Contains("BasePrefab");
@@ -295,10 +289,9 @@ public class Ventosa : MonoBehaviour
             {
                 Debug.LogError($"❌ [{gameObject.name}] usarSecuenciaDeCajas activo pero ordenCajas está vacío.");
             }
-            // DESPUÉS:
             else
             {
-                int indice = dronesSoltados % ordenCajas.Length; // ← vuelve a 0 después del 7
+                int indice = dronesSoltados % ordenCajas.Length;
                 int numeroCaja = ordenCajas[indice];
                 string nombreCaja = prefijoNombreCaja + numeroCaja + sufijoNombreCaja;
 
@@ -318,7 +311,6 @@ public class Ventosa : MonoBehaviour
                     {
                         destinoFinal = punto;
                         cajaDestino = cajaObj.transform;
-                        Debug.Log($"✔ [{gameObject.name}] Depositando dron #{dronesSoltados + 1} en {nombreCaja} (punto: {punto.name})");
                     }
                 }
 
@@ -331,26 +323,19 @@ public class Ventosa : MonoBehaviour
             grabbedObject.transform.position = destinoFinal.position;
             grabbedObject.transform.rotation = destinoFinal.rotation;
             dronDepositado = true;
-            Debug.Log($"🎯 [{gameObject.name}] Dron colocado en {destinoFinal.name}");
         }
 
         // Reparentado: a la caja si es Paletizador, o al padre original si es Omega/otro
         if (esDronCompleto && emparentarACaja && cajaDestino != null)
         {
             grabbedObject.transform.SetParent(cajaDestino, true);
-            Debug.Log($"🔗 Dron emparentado a: {cajaDestino.name}");
 
             // Disparar el cierre de la tapa con delay configurable
             CerradorTapa cerrador = cajaDestino.GetComponent<CerradorTapa>();
             if (cerrador != null)
-            {
-                Debug.Log($"🔒 [{gameObject.name}] Cierre de tapa programado en {delayCierreTapa}s para {cajaDestino.name}");
                 StartCoroutine(CerrarTapaConDelay(cerrador, delayCierreTapa));
-            }
             else
-            {
                 Debug.LogWarning($"⚠ [{gameObject.name}] {cajaDestino.name} no tiene componente CerradorTapa.");
-            }
         }
         else
         {
@@ -603,10 +588,7 @@ public class Ventosa : MonoBehaviour
             {
                 // Si está configurado para esperar permiso externo, no suelta hasta recibirlo
                 if (esperarPermisoParaSoltar && !permisoParaSoltar)
-                {
-                    // Se queda en esta pose esperando al cajón
                     return;
-                }
 
                 suctionActive = false;
                 StartCoroutine(LiberarEnSecuencia());
@@ -664,10 +646,7 @@ public class Ventosa : MonoBehaviour
         yield return new WaitForSeconds(delay);
 
         if (cerrador != null)
-        {
-            Debug.Log($"🔒 [{gameObject.name}] Ejecutando cierre de tapa ahora.");
             cerrador.CerrarTapa();
-        }
     }
 
     IEnumerator BajarABanda()
@@ -767,7 +746,6 @@ public class Ventosa : MonoBehaviour
             string json = JsonUtility.ToJson(c, true);
             string fullPath = GetFullSavePath();
             File.WriteAllText(fullPath, json);
-            Debug.Log("Poses guardadas en: " + fullPath);
 
 #if UNITY_EDITOR
             string jsonFileName = saveFileName;
@@ -863,7 +841,6 @@ public class Ventosa : MonoBehaviour
     public void ReiniciarContadorDrones()
     {
         dronesSoltados = 0;
-        Debug.Log($"[{gameObject.name}] Contador de drones reiniciado.");
     }
 }
 

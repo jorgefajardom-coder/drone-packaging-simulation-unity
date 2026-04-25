@@ -20,7 +20,6 @@ public class RetiradorCarro : MonoBehaviour
 
     /// <summary>
     /// Intenta adoptar las cajas asignadas. Solo procede si la última caja tiene la tapa cerrada.
-    /// Puede llamarse desde el script de movimiento del carro cuando llegue al punto de retiro.
     /// </summary>
     public void IntentarAdoptarCajas()
     {
@@ -49,12 +48,10 @@ public class RetiradorCarro : MonoBehaviour
 
         if (!cerrador.tapaCerrada)
         {
-            Debug.Log($"⏳ [{gameObject.name}] Esperando cierre de tapa de '{nombreCajaFinal}'. Reintentando...");
             StartCoroutine(EsperarYAdoptar(cerrador));
             return;
         }
 
-        // Todo listo: adoptar
         AdoptarCajas();
     }
 
@@ -63,7 +60,7 @@ public class RetiradorCarro : MonoBehaviour
         // Espera hasta que la tapa esté cerrada
         yield return new WaitUntil(() => cerrador.tapaCerrada);
 
-        // Un pequeño colchón para que termine bien la animación visual antes de emparentar
+        // Pequeño colchón para que termine la animación visual antes de emparentar
         yield return new WaitForSeconds(0.3f);
 
         AdoptarCajas();
@@ -72,6 +69,7 @@ public class RetiradorCarro : MonoBehaviour
     [ContextMenu("Adoptar cajas (forzar)")]
     public void AdoptarCajas()
     {
+        int adoptadas = 0;
         foreach (int n in cajasAsignadas)
         {
             string nombre = prefijoCaja + n + sufijoCaja;
@@ -79,15 +77,15 @@ public class RetiradorCarro : MonoBehaviour
             if (caja != null)
             {
                 caja.transform.SetParent(transform, true);
-                Debug.Log($"📦 {nombre} adoptada por {gameObject.name}");
+                adoptadas++;
             }
             else
             {
-                Debug.LogWarning($"⚠ No se encontró '{nombre}' para adoptar.");
+                Debug.LogWarning($"⚠ [{gameObject.name}] No se encontró '{nombre}' para adoptar.");
             }
         }
 
         cajasAdoptadas = true;
-        Debug.Log($"✔ [{gameObject.name}] Todas las cajas adoptadas.");
+        Debug.Log($"📦 [{gameObject.name}] {adoptadas} cajas adoptadas.");
     }
 }

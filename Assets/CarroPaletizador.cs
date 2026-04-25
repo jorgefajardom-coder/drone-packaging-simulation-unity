@@ -4,7 +4,6 @@ using UnityEngine;
 
 public class CarroPaletizador : MonoBehaviour
 {
-    // Define cómo se mueve el carro entre el giro y el punto destino
     public enum PatronMovimiento
     {
         Directo,        // traslado directo (diagonal si X y Z difieren)
@@ -52,7 +51,10 @@ public class CarroPaletizador : MonoBehaviour
     [Tooltip("Arrastra aquí el GameObject del CARRO (v1 o v2) que tiene el componente RetiradorCarro")]
     private RetiradorCarro retiradorCarro;
 
-    // Estado del carro
+    [Header("Total de drones a paletizar (sincronizar con Produccion)")]
+    public int totalDrones = 0;
+    private int dronesAtendidos = 0;
+
     private Vector3 offsetCarroAPivot;
     private Vector3 offsetBrazoLocal;
     private Transform brazoTransform;
@@ -69,87 +71,73 @@ public class CarroPaletizador : MonoBehaviour
         offsetCarroAPivot = transform.position - puntoInicio.position;
         brazoTransform = articulacionRaiz.transform;
         offsetBrazoLocal = brazoTransform.localPosition;
+    }
 
+    public void IniciarSecuenciaCarro()
+    {
+        dronesAtendidos = 0;
         StartCoroutine(EjecutarSecuencia());
     }
 
-    private IEnumerator EjecutarSecuencia()
+    IEnumerator EjecutarSecuencia()
     {
-        for (int i = 0; i < movimientos.Count; i++)
+        while (dronesAtendidos < totalDrones)
         {
+            int i = dronesAtendidos % movimientos.Count;
             var mov = movimientos[i];
-            Debug.Log($"[Carro] === Iniciando ciclo {i + 1}: {mov.nombre} ===");
 
             // 1. Esperar a que el brazo agarre el dron
-            Debug.Log("[Carro] Esperando que el brazo agarre el dron...");
             yield return new WaitUntil(() => ventosa.TieneObjeto);
 
             // 2. Traslado a la zona de giro
-            Debug.Log($"[Carro] Trasladando a {mov.zonaGiro.name}...");
             yield return TrasladarA(mov.zonaGiro, puntoInicio);
 
             // 3. Giro
-            Debug.Log($"[Carro] Girando {mov.anguloGiro}° sobre {mov.zonaGiro.name}...");
             yield return GirarCarroSobrePunto(mov.anguloGiro, mov.zonaGiro);
 
             // 4. Traslado al punto destino según el patrón
             if (mov.patron == PatronMovimiento.Directo)
-            {
-                Debug.Log($"[Carro] Trasladando directo a {mov.puntoDestino.name}...");
                 yield return TrasladarConPivotRotado(mov.puntoDestino, puntoInicio);
-            }
-            else // EnL_XLuegoZ
-            {
-                Debug.Log($"[Carro] Trasladando en L (X luego Z) a {mov.puntoDestino.name}...");
+            else
                 yield return TrasladarEnL(mov.puntoDestino, puntoInicio, xPrimero: true);
-            }
 
-            // 4.5. Otorgar permiso al brazo para soltar el dron (ya llegamos al punto)
-            Debug.Log($"[Carro] ✔ Otorgando permiso al paletizador para soltar.");
+            // 4.5. Otorgar permiso al brazo para soltar
             ventosa.permisoParaSoltar = true;
 
             // 5. Esperar a que suelte el dron
-            Debug.Log("[Carro] Esperando que el brazo suelte el dron...");
             yield return new WaitUntil(() => !ventosa.TieneObjeto);
 
-            // 5.5. Delay después de soltar antes de regresar
-            Debug.Log($"[Carro] Esperando {delayDespuesSoltar} segundos antes de regresar...");
+            // 5.5. Delay después de soltar
             yield return new WaitForSeconds(delayDespuesSoltar);
 
-            // 6. Regreso a la zona de giro (inverso del patrón)
+            // 6. Regreso a la zona de giro
             if (mov.patron == PatronMovimiento.Directo)
-            {
-                Debug.Log($"[Carro] Regresando directo a {mov.zonaGiro.name}...");
                 yield return TrasladarConPivotRotado(mov.zonaGiro, puntoInicio);
-            }
             else
-            {
-                Debug.Log($"[Carro] Regresando en L (Z luego X) a {mov.zonaGiro.name}...");
                 yield return TrasladarEnL(mov.zonaGiro, puntoInicio, xPrimero: false);
-            }
 
-            // 7. Des-girar para recuperar orientación
-            Debug.Log($"[Carro] Des-girando {-mov.anguloGiro}°...");
+            // 7. Des-girar
             yield return GirarCarroSobrePunto(-mov.anguloGiro, mov.zonaGiro);
 
             // 8. Regreso a puntoInicio
-            Debug.Log("[Carro] Regresando a puntoInicio...");
             yield return TrasladarConPivotRotado(puntoInicio, puntoInicio);
 
-            Debug.Log($"[Carro] === Ciclo {i + 1} completo ===");
+            dronesAtendidos++;
+            Debug.Log($"[Carro] 📦 Dron {dronesAtendidos}/{totalDrones} paletizado ({mov.nombre})");
+
+            // Adoptar cajas cada vez que se completa un grupo (y no es el último)
+            if (dronesAtendidos % movimientos.Count == 0 && dronesAtendidos < totalDrones)
+            {
+                if (retiradorCarro != null)
+                    retiradorCarro.IntentarAdoptarCajas();
+            }
         }
 
-        Debug.Log("[Carro] Secuencia completa finalizada.");
-        // Adoptar las cajas al terminar los 4 ciclos
+        // Adoptar cajas del último grupo al terminar
         if (retiradorCarro != null)
-        {
-            Debug.Log($"[Carro] Llamando a {retiradorCarro.gameObject.name}.IntentarAdoptarCajas()...");
             retiradorCarro.IntentarAdoptarCajas();
-        }
-        else
-        {
-            Debug.LogWarning("[Carro] No se asignó 'retiradorCarro' en el Inspector. Las cajas no serán adoptadas.");
-        }
+
+        Debug.Log("[Carro] ✅ Secuencia de paletizado completa.");
     }
 
     // ==================== MÉTODOS DE MOVIMIENTO ====================
@@ -222,17 +210,9 @@ public class CarroPaletizador : MonoBehaviour
         // Punto intermedio según qué eje mover primero
         Vector3 posIntermedia;
         if (xPrimero)
-        {
-            // Primero X, después Z: intermedio tiene X final y Z actual
             posIntermedia = new Vector3(posFinal.x, transform.position.y, transform.position.z);
-        }
         else
-        {
-            // Primero Z, después X: intermedio tiene X actual y Z final
             posIntermedia = new Vector3(transform.position.x, transform.position.y, posFinal.z);
-        }
-
-        Debug.Log($"[Carro L] Intermedio: {posIntermedia} | Final: {posFinal}");
 
         // Tramo 1: ir al intermedio
         yield return LerpAPosicion(posIntermedia);
@@ -241,7 +221,6 @@ public class CarroPaletizador : MonoBehaviour
         yield return LerpAPosicion(posFinal);
     }
 
-    // Helper: interpolación suave a una posición
     private IEnumerator LerpAPosicion(Vector3 objetivo)
     {
         Vector3 inicio = transform.position;
@@ -293,8 +272,6 @@ public class CarroPaletizador : MonoBehaviour
         ActualizarPosicionBrazo();
 
         rotacionAcumulada += anguloObjetivo;
-
-        Debug.Log($"[Carro] Giró {anguloObjetivo}°. Rotación acumulada: {rotacionAcumulada}°");
     }
 
     private void ActualizarPosicionBrazo()
