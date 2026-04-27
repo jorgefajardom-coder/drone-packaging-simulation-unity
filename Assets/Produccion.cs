@@ -23,9 +23,10 @@ public class Produccion : MonoBehaviour
     public Ventosa brazoOmega;
     public Ventosa brazoPaletizador;
 
-    private int droneActual = 0;
-    private int carroActual = 0;
-    private int cajasEnCarroActual = 0;
+    [HideInInspector] public int droneActual = 0;
+    [HideInInspector] public int carroActual = 0;
+    [HideInInspector] public int cajasEnCarroActual = 0;
+    [HideInInspector] public float tiempoInicioDronActual;
     private const int CAJAS_POR_CARRO = 4;
     private GameObject baseActual;
 
@@ -43,8 +44,22 @@ public class Produccion : MonoBehaviour
 
     public GameObject carroPrefab;
 
-    // ── Cronómetro de ciclo por dron ──
-    private float tiempoInicioDronActual;
+    // Propiedades para HMI (solo lectura)
+    public bool OmegaActivo => brazoOmega != null && brazoOmega.TieneObjeto;
+    public bool PaletActivo => brazoPaletizador != null && brazoPaletizador.TieneObjeto;
+    public string OmegaAccion => brazoOmega != null && brazoOmega.TieneObjeto ? "HOLDING" :
+                                    brazoOmega != null && brazoOmega.secuenciaTerminada ? "IDLE" : "MOVING";
+    public string PaletAccion => brazoPaletizador != null && brazoPaletizador.TieneObjeto ? "HOLDING" :
+                                    brazoPaletizador != null && brazoPaletizador.secuenciaTerminada ? "IDLE" : "MOVING";
+    public string CarroActualTag => carroActual % 2 == 0 ? "A" : "B";
+    public float TiempoCicloActual => Time.time - tiempoInicioDronActual;
+
+    // Al inicio de la clase, agregar:
+    [Header("Conexión TCP")]
+    public CodesysTcpClient tcp;
+
+    private bool _simulacionHabilitada = false;
+    private bool _sistemaOnAnterior = false;
 
     void Start()
     {
