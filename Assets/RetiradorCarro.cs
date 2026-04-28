@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using UnityEngine;
 
 public class RetiradorCarro : MonoBehaviour
@@ -17,6 +18,10 @@ public class RetiradorCarro : MonoBehaviour
     [Header("Estado")]
     [Tooltip("Solo lectura. Indica si ya se adoptaron las cajas.")]
     public bool cajasAdoptadas = false;
+
+    // Evento estático: se dispara cuando un carro adopta sus cajas y se retira
+    // El parámetro es el array de números de caja que llevó ese carro
+    public static event Action<int[]> OnCarroRetirado;
 
     /// <summary>
     /// Intenta adoptar las cajas asignadas. Solo procede si la última caja tiene la tapa cerrada.
@@ -86,6 +91,10 @@ public class RetiradorCarro : MonoBehaviour
         }
 
         cajasAdoptadas = true;
+
+        // Notificar a HmiManager (y cualquier suscriptor) que este carro se retiró
+        OnCarroRetirado?.Invoke(cajasAsignadas);
+
         Debug.Log($"📦 [{gameObject.name}] {adoptadas} cajas adoptadas.");
     }
 }

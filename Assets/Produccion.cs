@@ -54,13 +54,6 @@ public class Produccion : MonoBehaviour
     public string CarroActualTag => carroActual % 2 == 0 ? "A" : "B";
     public float TiempoCicloActual => Time.time - tiempoInicioDronActual;
 
-    // Al inicio de la clase, agregar:
-    [Header("Conexión TCP")]
-    public CodesysTcpClient tcp;
-
-    private bool _simulacionHabilitada = false;
-    private bool _sistemaOnAnterior = false;
-
     void Start()
     {
         posicionesOriginalesCarros = new Vector3[carros.Length];
