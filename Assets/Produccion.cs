@@ -65,6 +65,7 @@ public class Produccion : MonoBehaviour
                                     brazoPaletizador != null && brazoPaletizador.secuenciaTerminada ? "IDLE" : "MOVING";
     public string CarroActualTag => carroActual % 2 == 0 ? "A" : "B";
     public float TiempoCicloActual => Time.time - tiempoInicioDronActual;
+    public bool SistemaPausado => tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
 
     void Start()
     {
@@ -111,8 +112,14 @@ public class Produccion : MonoBehaviour
 
     void Update()
     {
+        Time.timeScale = SistemaPausado ? 0f : 1f;
         if (!simulacionActiva) return;
         tiempoTotalSimulacion += Time.deltaTime;
+    }
+
+    IEnumerator Esperar(Func<bool> condicion)
+    {
+        yield return new WaitUntil(() => !SistemaPausado && condicion());
     }
 
     IEnumerator LoopProduccion()
@@ -138,7 +145,7 @@ public class Produccion : MonoBehaviour
             brazoBeta.IniciarSecuenciaConEspera();
             brazoOmega.IniciarSecuenciaConEspera();
 
-            yield return new WaitUntil(() => brazoPaletizador.TieneObjeto);
+            yield return StartCoroutine(Esperar(() => brazoPaletizador.TieneObjeto));
 
             ReportarTiempoDron(droneActual + 1);
 
@@ -153,7 +160,7 @@ public class Produccion : MonoBehaviour
             brazoBeta.IniciarSecuenciaConEspera();
             brazoOmega.IniciarSecuenciaConEspera();
 
-            yield return new WaitUntil(() => brazoPaletizador.secuenciaTerminada);
+            yield return StartCoroutine(Esperar(() => brazoPaletizador.secuenciaTerminada));
 
             droneActual++;
             cajasEnCarroActual++;
@@ -174,12 +181,12 @@ public class Produccion : MonoBehaviour
                 brazoPaletizador.ResetCompleto();
                 yield return null;
 
-                yield return new WaitUntil(() => brazoOmega.dronDepositado);
+                yield return StartCoroutine(Esperar(() => brazoOmega.dronDepositado));
                 brazoOmega.dronDepositado = false;
 
                 brazoPaletizador.IniciarSecuencia();
 
-                yield return new WaitUntil(() => brazoPaletizador.TieneObjeto);
+                yield return StartCoroutine(Esperar(() => brazoPaletizador.TieneObjeto));
 
                 ReportarTiempoDron(droneActual + 1);
 
@@ -197,7 +204,7 @@ public class Produccion : MonoBehaviour
                     brazoOmega.IniciarSecuenciaConEspera();
                 }
 
-                yield return new WaitUntil(() => brazoPaletizador.secuenciaTerminada);
+                yield return StartCoroutine(Esperar(() => brazoPaletizador.secuenciaTerminada));
 
                 droneActual++;
                 cajasEnCarroActual++;
@@ -289,7 +296,7 @@ public class Produccion : MonoBehaviour
         if (retiradorSaliente != null)
         {
             retiradorSaliente.IntentarAdoptarCajas();
-            yield return new WaitUntil(() => retiradorSaliente.cajasAdoptadas);
+            yield return StartCoroutine(Esperar(() => retiradorSaliente.cajasAdoptadas));
         }
         else
         {
