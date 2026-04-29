@@ -1180,7 +1180,7 @@ IEnumerator Esperar(Func<bool> condicion)
 ```
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '14px'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '20px', 'pieLegendTextSize': '18px', 'pieTitleTextSize': '20px'}}}%%
 pie showData
     title OEE Loss Breakdown — 100 cycles
     "Productive time (OEE 86.80%)" : 86.80
@@ -2741,7 +2741,7 @@ IEnumerator Esperar(Func<bool> condicion)
 ```
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '14px'}}}%%
+%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '20px', 'pieLegendTextSize': '18px', 'pieTitleTextSize': '20px'}}}%%
 pie showData
     title Desglose de Pérdidas OEE — 100 ciclos
     "Tiempo productivo (OEE 86.80%)" : 86.80
