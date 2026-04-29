@@ -159,9 +159,8 @@ graph LR
     subgraph UNITY["Unity  ·  CodesysTcpClient.cs"]
         direction TB
         UA["Ventosa.cs · CarroPaletizador.cs"]
-        UB["TX  ›  0xAA · VENTOSAS · LEDS\n3 bytes · every 50 ms"]
-        UC["RX  ‹  0xBB · plc1 · plc2 · inputs · SISTEMA_ON\n5 bytes · every 50 ms"]
-        UA --> UB
+        UTCP["TX  0xAA · VENTOSAS · LEDS  3 bytes / 50 ms\nRX  0xBB · plc1 · plc2 · inputs · SISTEMA_ON  5 bytes / 50 ms"]
+        UA --> UTCP
     end
 
     subgraph PLC["CODESYS V3.5 SP9 P1  ·  port 8888"]
@@ -179,8 +178,7 @@ graph LR
         FB["Physical inputs\nBP1 · BP2 · START · STOP · EMERG"]
     end
 
-    UB -->|"TCP/IP"| PA
-    PA -->|"5-byte packet"| UC
+    UTCP <-->|"TCP/IP · port 8888"| PA
     PB -->|"OPC"| FA
     PC -->|"OPC"| FA
     FB -->|"OPC"| PA
@@ -332,7 +330,6 @@ graph LR
         direction TB
         S1["1BP1 · grip confirm Omega\n→ BP1 bit 0"]
         S2["1BP2 · grip confirm Paletizador\n→ BP2 bit 1"]
-        S3["Physical buttons\nSTART · STOP · EMERGENCIA\nbits 2–4"]
     end
 
     PLC1 -->|"bits 0–1"| V1
@@ -347,6 +344,8 @@ graph LR
     style ACT  fill:#1a5c2a,color:#fff,stroke:#27ae60
     style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
+
+> **Note:** Physical buttons START, STOP, and EMERGENCIA (entradas\_plc1 bits 2–4) are wired directly to FluidSIM's input module and are not driven by the pneumatic circuit shown above.
 
 ---
 
@@ -830,15 +829,6 @@ Arm's own JSON file (Poses_*.json)
                 → ArticulationDrive.target updated
 ```
 
-**Active JSON files and their arms**:
-
-| File | Arm | Poses | Description |
-|------|-----|-------|-------------|
-| `Poses_Alpha.json` | Alpha | 29 | Full Alpha sequence: base placement, motors 1 & 2, hélices 1 & 2 |
-| `Poses_Beta.json` | Beta | 24 | Full Beta sequence: motors 3 & 4, hélices 3 & 4 |
-| `Poses_Omega.json` | Omega | 18 | Full Omega sequence: PCB, tapa, and drone transfer |
-| `Poses_Palet.json` | Paletizador | 7 | Grip and deposit sequence |
-
 ---
 
 ### 5. Drone Unification (`DronListo.cs`)
@@ -1193,9 +1183,8 @@ IEnumerator Esperar(Func<bool> condicion)
 pie showData
     title OEE Loss Breakdown — 100 cycles
     "Productive time (OEE 86.80%)" : 86.80
-    "Availability loss" : 10.47
-    "Performance loss"  : 1.57
-    "Quality loss"      : 0
+    "Availability loss (11.82%)"   : 11.82
+    "Performance loss (1.38%)"     : 1.38
 ```
 
 #### Cycle Time — Statistical Control
@@ -1731,9 +1720,8 @@ graph LR
     subgraph UNITY["Unity  ·  CodesysTcpClient.cs"]
         direction TB
         UA["Ventosa.cs · CarroPaletizador.cs"]
-        UB["TX  ›  0xAA · VENTOSAS · LEDS\n3 bytes · cada 50 ms"]
-        UC["RX  ‹  0xBB · plc1 · plc2 · entradas · SISTEMA_ON\n5 bytes · cada 50 ms"]
-        UA --> UB
+        UTCP["TX  0xAA · VENTOSAS · LEDS  3 bytes / 50 ms\nRX  0xBB · plc1 · plc2 · entradas · SISTEMA_ON  5 bytes / 50 ms"]
+        UA --> UTCP
     end
     subgraph PLC["CODESYS V3.5 SP9 P1  ·  puerto 8888"]
         direction TB
@@ -1748,8 +1736,7 @@ graph LR
         FA["Circuito neumático\nNEUMATICA_ON / OFF"]
         FB["Entradas físicas\nBP1 · BP2 · START · STOP · EMERG"]
     end
-    UB -->|"TCP/IP"| PA
-    PA -->|"paquete 5 bytes"| UC
+    UTCP <-->|"TCP/IP · puerto 8888"| PA
     PB -->|"OPC"| FA
     PC -->|"OPC"| FA
     FB -->|"OPC"| PA
@@ -1900,7 +1887,6 @@ graph LR
         direction TB
         S1["1BP1 · confirmación agarre Omega\n→ BP1 bit 0"]
         S2["1BP2 · confirmación agarre Paletizador\n→ BP2 bit 1"]
-        S3["Pulsadores físicos\nSTART · STOP · EMERGENCIA\nbits 2–4"]
     end
 
     PLC1 -->|"bits 0–1"| V1
@@ -1915,6 +1901,8 @@ graph LR
     style ACT  fill:#1a5c2a,color:#fff,stroke:#27ae60
     style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
+
+> **Nota:** Los pulsadores físicos START, STOP y EMERGENCIA (bits 2–4 de entradas\_plc1) están cableados directamente al módulo de entradas de FluidSIM y no son parte del circuito neumático representado arriba.
 
 ---
 
@@ -2398,15 +2386,6 @@ Archivo JSON propio (Poses_*.json)
                 → ArticulationDrive.target actualizado
 ```
 
-**Archivos JSON activos y sus brazos**:
-
-| Archivo | Brazo | Poses | Descripción |
-|---------|-------|-------|-------------|
-| `Poses_Alpha.json` | Alpha | 29 | Secuencia completa Alpha: base, motores 1 y 2, hélices 1 y 2 |
-| `Poses_Beta.json` | Beta | 24 | Secuencia completa Beta: motores 3 y 4, hélices 3 y 4 |
-| `Poses_Omega.json` | Omega | 18 | Secuencia completa Omega: PCB, tapa y transferencia del dron |
-| `Poses_Palet.json` | Paletizador | 7 | Secuencia de agarre y depósito del Paletizador |
-
 ---
 
 ### 5. Unificación del Dron (`DronListo.cs`)
@@ -2763,9 +2742,8 @@ IEnumerator Esperar(Func<bool> condicion)
 pie showData
     title Desglose de Pérdidas OEE — 100 ciclos
     "Tiempo productivo (OEE 86.80%)" : 86.80
-    "Pérdida Disponibilidad" : 10.47
-    "Pérdida Rendimiento"    : 1.57
-    "Pérdida Calidad"        : 0
+    "Pérdida Disponibilidad (11.82%)": 11.82
+    "Pérdida Rendimiento (1.38%)"    : 1.38
 ```
 
 #### Tiempo de Ciclo — Control Estadístico
