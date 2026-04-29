@@ -17,6 +17,12 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 ![Simulation Overview](docs/simulation_overview.png)
 > *Isometric view of the robotic assembly cell  -  4 articulated arms (Alpha, Beta, Omega, Paletizador) with mecanum wheels.*
 
+<br/>
+
+[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
+
+> *Full simulation run — assembly, palletizing, and cart swap with CODESYS & FluidSIM integration.*
+
 </div>
 
 ---
@@ -266,6 +272,263 @@ stateDiagram-v2
 | `TCP_COMANDOS_VENTOSAS` bit 0 | `VENTOSA_OMEGA_ON` → Module 1 bit 0 |
 | `TCP_COMANDOS_VENTOSAS` bit 1 | `VENTOSA_PALETIZADOR_ON` → Module 1 bit 2 |
 | `TCP_COMANDOS_LEDS` bits 0–7 | `LED1–LED8` → Modules 1 & 2 |
+
+---
+
+### CODESYS PLC Program (`PLC_PRG`)
+
+The complete working ST program. Uses `SysSockSelect` with zero timeout for non-blocking socket I/O so the PLC task cycle is never blocked by `SysSockRecv`.
+
+#### Variable Declarations (`VAR`)
+
+```pascal
+PROGRAM PLC_PRG
+VAR
+    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
+    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
+    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+
+    VENTOSA_OMEGA_ON : BOOL;
+    VENTOSA_OMEGA_OFF : BOOL;
+    VENTOSA_PALETIZADOR_ON : BOOL;
+    VENTOSA_PALETIZADOR_OFF : BOOL;
+
+    LED1, LED2, LED3, LED4 : BOOL;
+    LED5, LED6, LED7, LED8 : BOOL;
+
+    TON_LED : TON;
+    tSendTimer : TON;
+    tNoDataTimer : TON;
+
+    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+
+    serverSockAddr : SOCKADDRESS;
+    clientSockAddr : SOCKADDRESS;
+
+    addrLen : DINT;
+    serverPort : UINT := 8888;
+
+    xServerCreated : BOOL := FALSE;
+    xClientConnected : BOOL := FALSE;
+
+    rxBuffer : ARRAY[0..2] OF BYTE;
+    txBuffer : ARRAY[0..4] OF BYTE;
+
+    nBytesReceived : DINT;
+    nBytesSent : DINT;
+
+    TCP_COMANDOS_VENTOSAS : BYTE := 0;
+    TCP_COMANDOS_LEDS : BYTE := 0;
+
+    bPktReceived : BOOL := FALSE;
+
+    fdRead : SOCKET_FD_SET;
+    tvTimeout : SOCKET_TIMEVAL;
+    diSelectResult : DINT;
+    socketResult : DINT;
+END_VAR
+```
+
+#### Program Body
+
+```pascal
+(* ── Input decoding ─────────────────────────────────────────────────── *)
+BP1        := (entradas_plc1 AND 16#01) <> 0;
+BP2        := (entradas_plc1 AND 16#02) <> 0;
+START      := (entradas_plc1 AND 16#04) <> 0;
+STOP       := (entradas_plc1 AND 16#08) <> 0;
+EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
+
+(* ── System ON/OFF logic ─────────────────────────────────────────────── *)
+IF NOT STOP OR NOT EMERGENCIA THEN
+    SISTEMA_ON := FALSE;
+END_IF;
+
+IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
+    SISTEMA_ON := TRUE;
+    LED_TEST := TRUE;
+END_IF;
+
+START_ANT := START;
+
+TON_LED(IN := LED_TEST, PT := T#1S);
+IF TON_LED.Q THEN
+    LED_TEST := FALSE;
+END_IF;
+
+(* ── Pneumatics ──────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    NEUMATICA_ON := TRUE;
+    NEUMATICA_OFF := FALSE;
+ELSE
+    NEUMATICA_ON := FALSE;
+    NEUMATICA_OFF := TRUE;
+END_IF;
+
+(* ── Suction cups ────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
+    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
+ELSE
+    VENTOSA_OMEGA_ON       := FALSE;
+    VENTOSA_PALETIZADOR_ON := FALSE;
+END_IF;
+
+VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
+VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
+
+(* ── LEDs ────────────────────────────────────────────────────────────── *)
+IF LED_TEST THEN
+    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
+    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
+ELSE
+    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
+    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
+    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
+    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
+    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
+    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
+    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
+    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
+END_IF;
+
+(* ── Pack output bytes ───────────────────────────────────────────────── *)
+salidas_plc1 := 0;
+IF VENTOSA_OMEGA_ON       THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
+IF VENTOSA_OMEGA_OFF      THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
+IF VENTOSA_PALETIZADOR_ON THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
+IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
+IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
+IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
+IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
+IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
+
+salidas_plc2 := 0;
+IF LED2         THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
+IF LED1         THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
+IF LED4         THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
+IF LED3         THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
+IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
+IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
+
+(* ── TCP Server: create + bind + listen (once) ───────────────────────── *)
+IF NOT xServerCreated THEN
+    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
+
+    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
+        serverSockAddr.sin_family := SOCKET_AF_INET;
+        serverSockAddr.sin_port   := SysSockHtons(serverPort);
+        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
+
+        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
+            IF SysSockListen(hServer, 1) = 0 THEN
+                xServerCreated := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hServer);
+            hServer := RTS_INVALID_HANDLE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP Server: accept new client (non-blocking via SysSockSelect) ──── *)
+IF xServerCreated AND NOT xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hServer;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        addrLen := SIZEOF(clientSockAddr);
+        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
+
+        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
+            xClientConnected      := TRUE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+            bPktReceived          := FALSE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: receive Unity command packet (non-blocking) ────────────────── *)
+IF xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hClient;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
+
+        IF nBytesReceived > 0 THEN
+            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
+                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
+                TCP_COMANDOS_LEDS     := rxBuffer[2];
+                bPktReceived          := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hClient);
+            hClient           := RTS_INVALID_HANDLE;
+            xClientConnected  := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: send status packet to Unity every 50 ms ────────────────────── *)
+IF xClientConnected THEN
+    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
+
+    IF tSendTimer.Q THEN
+        txBuffer[0] := 16#BB;
+        txBuffer[1] := salidas_plc1;
+        txBuffer[2] := salidas_plc2;
+        txBuffer[3] := entradas_plc1;
+        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
+
+        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
+
+        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
+            SysSockClose(hClient);
+            hClient           := RTS_INVALID_HANDLE;
+            xClientConnected  := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── Watchdog: disconnect if no packet in 3 s ────────────────────────── *)
+tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
+
+IF tNoDataTimer.Q THEN
+    SysSockClose(hClient);
+    hClient           := RTS_INVALID_HANDLE;
+    xClientConnected  := FALSE;
+    TCP_COMANDOS_VENTOSAS := 0;
+    TCP_COMANDOS_LEDS     := 0;
+END_IF;
+
+bPktReceived := FALSE;
+```
+
+**Key implementation notes:**
+
+| Technique | Reason |
+|-----------|--------|
+| `SysSockSelect` with `tvTimeout = {0, 0}` | Non-blocking check — PLC cycle never stalls on recv |
+| Always send every 50 ms via `tSendTimer` | Unity heartbeat times out recv on its own thread within 50 ms |
+| `nBytesReceived <= 0` disconnect | Catches both graceful close (0) and RST/error (−1) |
+| `tNoDataTimer T#3S` watchdog | Drops client if Unity crashes without closing the socket |
+| All `SysSock*` calls use positional params | Named parameters not supported in CODESYS 3.5 SP9 P1 |
+| `hServer`/`hClient` initialized to `RTS_INVALID_HANDLE` | Prevents use of uninitialized handle on first cycle |
 
 ---
 
@@ -1073,11 +1336,11 @@ After the drone is deposited, `CerradorTapa` closes the lid and then destroys th
 
 **TCP protocol** (`CodesysTcpClient.cs`):
 ```
-TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]    -  3 bytes, 50 ms interval
-RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1]  -  4 bytes
+TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]                    -  3 bytes, every 50 ms
+RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]      -  5 bytes, every 50 ms
 ```
 
-The `CodesysTcpClient` runs dedicated send and receive background threads with automatic reconnect every `reconnectInterval` seconds (default 3 s).
+The `CodesysTcpClient` runs dedicated send and receive background threads with automatic reconnect every `reconnectInterval` seconds (default 3 s). A connection-generation counter prevents stale threads from interfering after reconnects. Unity pauses (`Time.timeScale = 0`) whenever `salidas_plc2 & 0x10` (NEUMATICA_OFF) is set, which CODESYS asserts on STOP or EMERGENCIA.
 
 ---
 
@@ -1111,6 +1374,43 @@ EMAIL_ADDRESS, EMAIL_PASSWORD, TO_EMAIL
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 WEBSOCKET_URL  (default: ws://192.168.1.3:81)
 ```
+
+---
+
+### 13. STOP / EMERGENCIA Pause (`Produccion.cs`)
+
+When FluidSIM sends a STOP or EMERGENCIA signal, CODESYS deasserts the pneumatic circuit (`NEUMATICA_OFF` → `salidas_plc2 bit 4`). Unity detects this and **freezes the entire simulation** as if the user pressed Pause.
+
+**Implementation in `Produccion.cs`**:
+
+```csharp
+// Pause condition: connected + NEUMATICA_OFF bit set
+public bool SistemaPausado =>
+    tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+
+void Update()
+{
+    Time.timeScale = SistemaPausado ? 0f : 1f;  // Freeze/resume everything
+    if (!simulacionActiva) return;
+    tiempoTotalSimulacion += Time.deltaTime;     // Only counts while running
+}
+
+// All WaitUntil calls wrapped to also check for pause
+IEnumerator Esperar(Func<bool> condicion)
+{
+    yield return new WaitUntil(() => !SistemaPausado && condicion());
+}
+```
+
+**Behavior**:
+
+| Condition | Effect |
+|-----------|--------|
+| `STOP` or `EMERGENCIA` = LOW in FluidSIM | `Time.timeScale = 0` — arms freeze, coroutines suspend |
+| Signal restored | `Time.timeScale = 1` — simulation resumes from where it stopped |
+| TCP disconnected | `SistemaPausado` returns `false` — simulation continues unpaused |
+
+`Time.timeScale = 0` freezes all Unity physics and `WaitForSeconds` timers but does **not** affect background TCP threads, which continue running at OS level.
 
 ---
 
@@ -1477,6 +1777,12 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 ![Vista general de la simulación](docs/simulation_overview.png)
 > *Vista isométrica de la celda robótica de ensamblaje  -  4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum.*
 
+<br/>
+
+[![Video Demo](https://img.shields.io/badge/▶_Video_Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
+
+> *Corrida completa de la simulación — ensamblaje, paletizado y swap de carros con integración CODESYS & FluidSIM.*
+
 </div>
 
 ---
@@ -1726,6 +2032,263 @@ stateDiagram-v2
 | Bit 0 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_OMEGA_ON` → Módulo 1 bit 0 |
 | Bit 1 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_PALETIZADOR_ON` → Módulo 1 bit 2 |
 | Bits 0–7 de `TCP_COMANDOS_LEDS` | `LED1–LED8` → Módulos 1 y 2 |
+
+---
+
+### Programa PLC CODESYS (`PLC_PRG`)
+
+Programa ST completo y funcional. Usa `SysSockSelect` con timeout cero para I/O de socket no bloqueante, de modo que el ciclo de tarea PLC nunca se bloquea en `SysSockRecv`.
+
+#### Declaración de Variables (`VAR`)
+
+```pascal
+PROGRAM PLC_PRG
+VAR
+    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
+    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
+    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+
+    VENTOSA_OMEGA_ON : BOOL;
+    VENTOSA_OMEGA_OFF : BOOL;
+    VENTOSA_PALETIZADOR_ON : BOOL;
+    VENTOSA_PALETIZADOR_OFF : BOOL;
+
+    LED1, LED2, LED3, LED4 : BOOL;
+    LED5, LED6, LED7, LED8 : BOOL;
+
+    TON_LED : TON;
+    tSendTimer : TON;
+    tNoDataTimer : TON;
+
+    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+
+    serverSockAddr : SOCKADDRESS;
+    clientSockAddr : SOCKADDRESS;
+
+    addrLen : DINT;
+    serverPort : UINT := 8888;
+
+    xServerCreated : BOOL := FALSE;
+    xClientConnected : BOOL := FALSE;
+
+    rxBuffer : ARRAY[0..2] OF BYTE;
+    txBuffer : ARRAY[0..4] OF BYTE;
+
+    nBytesReceived : DINT;
+    nBytesSent : DINT;
+
+    TCP_COMANDOS_VENTOSAS : BYTE := 0;
+    TCP_COMANDOS_LEDS : BYTE := 0;
+
+    bPktReceived : BOOL := FALSE;
+
+    fdRead : SOCKET_FD_SET;
+    tvTimeout : SOCKET_TIMEVAL;
+    diSelectResult : DINT;
+    socketResult : DINT;
+END_VAR
+```
+
+#### Cuerpo del Programa
+
+```pascal
+(* ── Decodificación de entradas ──────────────────────────────────────── *)
+BP1        := (entradas_plc1 AND 16#01) <> 0;
+BP2        := (entradas_plc1 AND 16#02) <> 0;
+START      := (entradas_plc1 AND 16#04) <> 0;
+STOP       := (entradas_plc1 AND 16#08) <> 0;
+EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
+
+(* ── Lógica SISTEMA_ON / OFF ──────────────────────────────────────────── *)
+IF NOT STOP OR NOT EMERGENCIA THEN
+    SISTEMA_ON := FALSE;
+END_IF;
+
+IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
+    SISTEMA_ON := TRUE;
+    LED_TEST := TRUE;
+END_IF;
+
+START_ANT := START;
+
+TON_LED(IN := LED_TEST, PT := T#1S);
+IF TON_LED.Q THEN
+    LED_TEST := FALSE;
+END_IF;
+
+(* ── Neumática ───────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    NEUMATICA_ON := TRUE;
+    NEUMATICA_OFF := FALSE;
+ELSE
+    NEUMATICA_ON := FALSE;
+    NEUMATICA_OFF := TRUE;
+END_IF;
+
+(* ── Ventosas ────────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
+    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
+ELSE
+    VENTOSA_OMEGA_ON       := FALSE;
+    VENTOSA_PALETIZADOR_ON := FALSE;
+END_IF;
+
+VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
+VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
+
+(* ── LEDs ────────────────────────────────────────────────────────────── *)
+IF LED_TEST THEN
+    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
+    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
+ELSE
+    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
+    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
+    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
+    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
+    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
+    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
+    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
+    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
+END_IF;
+
+(* ── Empaquetar bytes de salida ──────────────────────────────────────── *)
+salidas_plc1 := 0;
+IF VENTOSA_OMEGA_ON        THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
+IF VENTOSA_OMEGA_OFF       THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
+IF VENTOSA_PALETIZADOR_ON  THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
+IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
+IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
+IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
+IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
+IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
+
+salidas_plc2 := 0;
+IF LED2          THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
+IF LED1          THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
+IF LED4          THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
+IF LED3          THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
+IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
+IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
+
+(* ── TCP Server: crear + bind + listen (una sola vez) ───────────────── *)
+IF NOT xServerCreated THEN
+    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
+
+    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
+        serverSockAddr.sin_family := SOCKET_AF_INET;
+        serverSockAddr.sin_port   := SysSockHtons(serverPort);
+        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
+
+        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
+            IF SysSockListen(hServer, 1) = 0 THEN
+                xServerCreated := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hServer);
+            hServer := RTS_INVALID_HANDLE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP Server: aceptar cliente (no bloqueante con SysSockSelect) ───── *)
+IF xServerCreated AND NOT xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hServer;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        addrLen := SIZEOF(clientSockAddr);
+        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
+
+        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
+            xClientConnected      := TRUE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+            bPktReceived          := FALSE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: recibir paquete de comando de Unity (no bloqueante) ────────── *)
+IF xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hClient;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
+
+        IF nBytesReceived > 0 THEN
+            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
+                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
+                TCP_COMANDOS_LEDS     := rxBuffer[2];
+                bPktReceived          := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hClient);
+            hClient               := RTS_INVALID_HANDLE;
+            xClientConnected      := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: enviar paquete de estado a Unity cada 50 ms ───────────────── *)
+IF xClientConnected THEN
+    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
+
+    IF tSendTimer.Q THEN
+        txBuffer[0] := 16#BB;
+        txBuffer[1] := salidas_plc1;
+        txBuffer[2] := salidas_plc2;
+        txBuffer[3] := entradas_plc1;
+        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
+
+        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
+
+        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
+            SysSockClose(hClient);
+            hClient               := RTS_INVALID_HANDLE;
+            xClientConnected      := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── Watchdog: desconectar si no hay paquete en 3 s ─────────────────── *)
+tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
+
+IF tNoDataTimer.Q THEN
+    SysSockClose(hClient);
+    hClient               := RTS_INVALID_HANDLE;
+    xClientConnected      := FALSE;
+    TCP_COMANDOS_VENTOSAS := 0;
+    TCP_COMANDOS_LEDS     := 0;
+END_IF;
+
+bPktReceived := FALSE;
+```
+
+**Notas de implementación:**
+
+| Técnica | Motivo |
+|---------|--------|
+| `SysSockSelect` con `tvTimeout = {0, 0}` | No bloqueante — el ciclo PLC nunca se congela en recv |
+| Envío cada 50 ms con `tSendTimer` | El recv de Unity en su hilo propio retorna en ≤50 ms |
+| `nBytesReceived <= 0` para desconexión | Captura cierre gracioso (0) y RST/error (−1) |
+| Watchdog `tNoDataTimer T#3S` | Libera cliente si Unity se cierra sin cerrar el socket |
+| Parámetros posicionales en `SysSock*` | Los parámetros nombrados no existen en CODESYS 3.5 SP9 P1 |
+| `hServer`/`hClient` := `RTS_INVALID_HANDLE` | Evita usar un handle no inicializado en el primer ciclo |
 
 ---
 
@@ -2533,9 +3096,11 @@ Tras depositar el dron, `CerradorTapa` cierra la tapa y luego destruye el GameOb
 
 **Protocolo TCP** (`CodesysTcpClient.cs`):
 ```
-TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]    -  3 bytes, intervalo 50 ms
-RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1]  -  4 bytes
+TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]                    -  3 bytes, cada 50 ms
+RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]      -  5 bytes, cada 50 ms
 ```
+
+El `CodesysTcpClient` ejecuta hilos dedicados de envío y recepción con reconexión automática cada `reconnectInterval` segundos (default 3 s). Un contador de generación de conexión evita que hilos obsoletos interfieran tras reconexiones. Unity pausa (`Time.timeScale = 0`) cuando `salidas_plc2 & 0x10` (NEUMATICA_OFF) está activo, lo cual CODESYS aserta ante STOP o EMERGENCIA.
 
 El `CodesysTcpClient` ejecuta hilos dedicados de envío y recepción en segundo plano con reconexión automática cada `reconnectInterval` segundos (por defecto 3 s).
 
@@ -2571,6 +3136,43 @@ EMAIL_ADDRESS, EMAIL_PASSWORD, TO_EMAIL
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 WEBSOCKET_URL  (por defecto: ws://192.168.1.3:81)
 ```
+
+---
+
+### 13. Pausa por STOP / EMERGENCIA (`Produccion.cs`)
+
+Cuando FluidSIM envía señal de STOP o EMERGENCIA, CODESYS desactiva el circuito neumático (`NEUMATICA_OFF` → `salidas_plc2 bit 4`). Unity lo detecta y **congela toda la simulación** como si el usuario presionara Pause.
+
+**Implementación en `Produccion.cs`**:
+
+```csharp
+// Condición de pausa: conectado + bit NEUMATICA_OFF activo
+public bool SistemaPausado =>
+    tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+
+void Update()
+{
+    Time.timeScale = SistemaPausado ? 0f : 1f;  // Congela / reanuda todo
+    if (!simulacionActiva) return;
+    tiempoTotalSimulacion += Time.deltaTime;     // Solo cuenta mientras corre
+}
+
+// Todas las esperas también verifican la pausa
+IEnumerator Esperar(Func<bool> condicion)
+{
+    yield return new WaitUntil(() => !SistemaPausado && condicion());
+}
+```
+
+**Comportamiento:**
+
+| Condición | Efecto |
+|-----------|--------|
+| `STOP` o `EMERGENCIA` = LOW en FluidSIM | `Time.timeScale = 0` — brazos congelados, coroutines suspendidas |
+| Señal restaurada | `Time.timeScale = 1` — la simulación continúa desde donde se detuvo |
+| TCP desconectado | `SistemaPausado` devuelve `false` — simulación sigue sin pausar |
+
+`Time.timeScale = 0` congela toda la física de Unity y los temporizadores `WaitForSeconds`, pero **no afecta** los hilos TCP en segundo plano, que siguen corriendo a nivel de SO.
 
 ---
 

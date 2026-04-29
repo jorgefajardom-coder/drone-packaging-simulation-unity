@@ -43,6 +43,7 @@ public class CodesysTcpClient : MonoBehaviour
     private Thread _sendThread;
     private bool _running = false;
     private float _reconnectTimer = 0f;
+    private int _connectionGeneration = 0;
 
     private byte _lastVentosas = 0xFF;
     private byte _lastLeds = 0xFF;
@@ -53,13 +54,14 @@ public class CodesysTcpClient : MonoBehaviour
     // [2] = TCP_COMANDOS_LEDS
     private const byte HEADER_TX = 0xAA;
 
-    // Protocolo: paquete de 4 bytes recibido desde CODESYS
+    // Protocolo: paquete de 5 bytes recibido desde CODESYS
     // [0] = 0xBB (header)
     // [1] = salidas_plc1
     // [2] = salidas_plc2
     // [3] = entradas_plc1
+    // [4] = SISTEMA_ON (1 = ON, 0 = OFF)
     private const byte HEADER_RX = 0xBB;
-    private const int RX_PACKET_SIZE = 4;
+    private const int RX_PACKET_SIZE = 5;
 
     // Agrega este campo privado:
     private readonly object _lockBytes = new object();
@@ -90,9 +92,9 @@ public class CodesysTcpClient : MonoBehaviour
             _lastVentosas = 0xFF;
             _lastLeds = 0xFF;
 
-            _client = new TcpClient();
+            int myGeneration = ++_connectionGeneration;
 
-            // Conexión con timeout de 2s para no bloquear Unity
+            _client = new TcpClient();
             IAsyncResult result = _client.BeginConnect(codesysIP, codesysPort, null, null);
             bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(2));
 
@@ -109,10 +111,10 @@ public class CodesysTcpClient : MonoBehaviour
             _running = true;
             isConnected = true;
 
-            _receiveThread = new Thread(ReceiveLoop) { IsBackground = true };
+            _receiveThread = new Thread(() => ReceiveLoop(myGeneration)) { IsBackground = true };
             _receiveThread.Start();
 
-            _sendThread = new Thread(SendLoop) { IsBackground = true };
+            _sendThread = new Thread(() => SendLoop(myGeneration)) { IsBackground = true };
             _sendThread.Start();
 
             Log($"[TCP] Conectado a CODESYS {codesysIP}:{codesysPort}");
@@ -124,7 +126,7 @@ public class CodesysTcpClient : MonoBehaviour
         }
     }
 
-    void SendLoop()
+    void SendLoop(int generation)
     {
         while (_running && _stream != null)
         {
@@ -148,14 +150,14 @@ public class CodesysTcpClient : MonoBehaviour
             catch (Exception e)
             {
                 Log($"[TCP] Error de envío: {e.Message}");
-                HandleDisconnect();
+                HandleDisconnect(generation);
                 break;
             }
             Thread.Sleep(50);
         }
     }
 
-    void ReceiveLoop()
+    void ReceiveLoop(int generation)
     {
         byte[] buffer = new byte[RX_PACKET_SIZE];
         int bytesRead = 0;
@@ -165,7 +167,7 @@ public class CodesysTcpClient : MonoBehaviour
             try
             {
                 int b = _stream.ReadByte();
-                if (b < 0) { HandleDisconnect(); break; }
+                if (b < 0) { HandleDisconnect(generation); break; }
 
                 if ((byte)b == HEADER_RX)
                 {
@@ -173,7 +175,7 @@ public class CodesysTcpClient : MonoBehaviour
                     while (bytesRead < RX_PACKET_SIZE - 1)
                     {
                         int r = _stream.Read(buffer, bytesRead, RX_PACKET_SIZE - 1 - bytesRead);
-                        if (r <= 0) { HandleDisconnect(); return; }
+                        if (r <= 0) { HandleDisconnect(generation); return; }
                         bytesRead += r;
                     }
                     ParseReceivedPacket(buffer);
@@ -182,7 +184,7 @@ public class CodesysTcpClient : MonoBehaviour
             catch (Exception e)
             {
                 if (_running) Log($"[TCP] Error de recepción: {e.Message}");
-                HandleDisconnect();
+                HandleDisconnect(generation);
                 break;
             }
         }
@@ -212,8 +214,8 @@ public class CodesysTcpClient : MonoBehaviour
         NEUMATICA_OFF = (salidas_plc2 & 0x10) != 0;
         NEUMATICA_ON = (salidas_plc2 & 0x20) != 0;
 
-        // entradas_plc1: SISTEMA_ON se refleja en bit START lógico
-        SISTEMA_ON = (entradas_plc1 & 0x04) != 0; // bit2 = START enclavado
+        // SISTEMA_ON enviado directamente como byte 5
+        SISTEMA_ON = data[3] != 0;
     }
 
     // ── API pública ─────────────────────────────────────────────────────────
@@ -251,8 +253,10 @@ public class CodesysTcpClient : MonoBehaviour
 
     // ── Internos ─────────────────────────────────────────────────────────────
 
-    void HandleDisconnect()
+    void HandleDisconnect(int generation)
     {
+        // Ignorar si este hilo pertenece a una conexión ya reemplazada
+        if (generation != _connectionGeneration) return;
         if (!isConnected) return;
         isConnected = false;
         _running = false;
@@ -262,14 +266,15 @@ public class CodesysTcpClient : MonoBehaviour
     void CleanupConnection()
     {
         _running = false;
+        isConnected = false;
         try { _stream?.Close(); } catch { }
         try { _client?.Close(); } catch { }
         _stream = null;
         _client = null;
 
         // Esperar que los hilos terminen antes de crear nuevos
-        try { _receiveThread?.Join(500); } catch { }
-        try { _sendThread?.Join(500); } catch { }
+        try { _receiveThread?.Join(1000); } catch { }
+        try { _sendThread?.Join(1000); } catch { }
         _receiveThread = null;
         _sendThread = null;
     }
