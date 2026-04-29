@@ -146,15 +146,7 @@ Physics.IgnoreCollision // Dynamic collision control
 | **SysSocket Interfaces** | 3.5.15.0 | Interface definitions for SysSocket |
 | **SysTypes2 Interfaces** | 3.5.15.0 | Primitive type definitions used by Sys libraries |
 
-To add these libraries in CODESYS, go to **Tools → Library Manager → Add Library** and search for each one. The steps below show how to locate **SysTypes2 Interfaces** and confirm **SysSocket** libraries are correctly installed:
-
-<div align="center">
-
-![Select SysTypes2 Interfaces](docs/codesys_systypes2_interfaces.png)
-
-![SysSocket libraries confirmed](docs/codesys_syssocket_libraries.png)
-
-</div>
+Add via **Tools → Library Manager → Add Library**.
 
 ---
 
@@ -163,52 +155,39 @@ To add these libraries in CODESYS, go to **Tools → Library Manager → Add Lib
 The three layers communicate over two protocols: **TCP/IP** (Unity ↔ CODESYS) and **OPC DA** (CODESYS ↔ FluidSIM).
 
 ```mermaid
-graph TB
-    subgraph UNITY["Unity · CodesysTcpClient.cs"]
-        U1["Ventosa.cs · CarroPaletizador.cs"]
-        U2["TX → CODESYS<br/>[0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]<br/><i>3 bytes · every 50 ms</i>"]
-        U3["RX ← CODESYS<br/>[0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]<br/><i>5 bytes · every 50 ms</i>"]
-        U1 -->|packs bits| U2
-    end
-
-    subgraph HW_IN["Physical Inputs"]
-        H1["entradas_plc1<br/>BP1 · BP2 · START · STOP · EMERGENCIA"]
-    end
-
-    subgraph CODESYS["CODESYS V3.5 SP9 P1 · PLC_PRG · port 8888"]
+graph LR
+    subgraph UNITY["Unity  ·  CodesysTcpClient.cs"]
         direction TB
-        C2["PLC_PRG<br/>(SysSockSelect non-blocking)"]
-        C3["salidas_plc1<br/>ventosa solenoids · LED5–8"]
-        C4["salidas_plc2<br/>LED1–4 · NEUMATICA_ON/OFF"]
-        C2 --> C3
-        C2 --> C4
+        UA["Ventosa.cs · CarroPaletizador.cs"]
+        UB["TX  ›  0xAA · VENTOSAS · LEDS\n3 bytes · every 50 ms"]
+        UC["RX  ‹  0xBB · plc1 · plc2 · inputs · SISTEMA_ON\n5 bytes · every 50 ms"]
+        UA --> UB
     end
 
-    subgraph HW_OUT["Physical Outputs"]
-        H2["Suction · Omega / Palet"]
-        H3["LED Panel · LED1–LED8"]
+    subgraph PLC["CODESYS V3.5 SP9 P1  ·  port 8888"]
+        direction TB
+        PA["PLC_PRG\nSysSockSelect non-blocking"]
+        PB["salidas_plc1\nventosa solenoids · LED5-8"]
+        PC["salidas_plc2\nLED1-4 · NEUMATICA"]
+        PA --> PB
+        PA --> PC
     end
 
-    subgraph FLUIDSIM["FluidSIM 4.2p Pneumatics · OPC DA"]
-        F1["NEUMATICA_ON / NEUMATICA_OFF"]
-        F2["Pneumatic Circuit + STOP/EMERGENCIA feedback"]
-        F1 --> F2
+    subgraph OPC["FluidSIM 4.2p  ·  OPC DA"]
+        direction TB
+        FA["Pneumatic circuit\nNEUMATICA_ON / OFF"]
+        FB["Physical inputs\nBP1 · BP2 · START · STOP · EMERG"]
     end
 
-    U2 -->|"TCP/IP · 127.0.0.1:8888"| C2
-    H1 -->|byte input| C2
-    C2 -->|"5-byte status packet"| U3
-    C3 --> H2
-    C3 -->|LED5–8| H3
-    C4 -->|LED1–4| H3
-    C4 -->|"OPC DA · NEUMATICA_ON/OFF"| F1
-    F2 -->|"STOP/EMERGENCIA → NEUMATICA_OFF → salidas_plc2 bit4"| U3
+    UB -->|"TCP/IP"| PA
+    PA -->|"5-byte packet"| UC
+    PB -->|"OPC"| FA
+    PC -->|"OPC"| FA
+    FB -->|"OPC"| PA
 
-    style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
-    style HW_IN fill:#4a4a4a,color:#fff,stroke:#4a4a4a
-    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
-    style FLUIDSIM fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style HW_OUT fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    style UNITY fill:#1a3a5c,color:#fff,stroke:#4a6fa5
+    style PLC   fill:#8b0000,color:#fff,stroke:#c0392b
+    style OPC   fill:#1a5c2a,color:#fff,stroke:#27ae60
 ```
 
 ---
@@ -298,258 +277,22 @@ stateDiagram-v2
 
 ### CODESYS PLC Program (`PLC_PRG`)
 
-The complete working ST program. Uses `SysSockSelect` with zero timeout for non-blocking socket I/O so the PLC task cycle is never blocked by `SysSockRecv`.
+`PLC_PRG` is a Structured Text program that acts as the automation core of the cell. Its main responsibilities are:
 
-#### Variable Declarations (`VAR`)
+- **TCP server on port 8888** — accepts a single Unity client, receives 3-byte command packets (`0xAA · VENTOSAS · LEDS`) and sends back 5-byte status packets (`0xBB · plc1 · plc2 · inputs · SISTEMA_ON`) every 50 ms.
+- **Safety logic** — monitors `STOP` and `EMERGENCIA` inputs; any LOW signal immediately sets `SISTEMA_ON := FALSE` and cuts pneumatics. System only restarts on a `START` rising edge with both signals HIGH.
+- **Actuator control** — decodes `TCP_COMANDOS_VENTOSAS` bits to drive solenoid valves for the two suction cups (Omega and Paletizador), and `TCP_COMANDOS_LEDS` bits to drive 8 indicator LEDs via OPC DA.
+- **OPC DA bridge** — publishes `salidas_plc1/2` and reads `entradas_plc1` through the FluidSIM OPC server, synchronizing the virtual pneumatic circuit with Unity in real time.
 
-```pascal
-PROGRAM PLC_PRG
-VAR
-    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
-    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
-    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+**Key design advantages:**
 
-    VENTOSA_OMEGA_ON : BOOL;
-    VENTOSA_OMEGA_OFF : BOOL;
-    VENTOSA_PALETIZADOR_ON : BOOL;
-    VENTOSA_PALETIZADOR_OFF : BOOL;
-
-    LED1, LED2, LED3, LED4 : BOOL;
-    LED5, LED6, LED7, LED8 : BOOL;
-
-    TON_LED : TON;
-    tSendTimer : TON;
-    tNoDataTimer : TON;
-
-    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
-    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
-
-    serverSockAddr : SOCKADDRESS;
-    clientSockAddr : SOCKADDRESS;
-
-    addrLen : DINT;
-    serverPort : UINT := 8888;
-
-    xServerCreated : BOOL := FALSE;
-    xClientConnected : BOOL := FALSE;
-
-    rxBuffer : ARRAY[0..2] OF BYTE;
-    txBuffer : ARRAY[0..4] OF BYTE;
-
-    nBytesReceived : DINT;
-    nBytesSent : DINT;
-
-    TCP_COMANDOS_VENTOSAS : BYTE := 0;
-    TCP_COMANDOS_LEDS : BYTE := 0;
-
-    bPktReceived : BOOL := FALSE;
-
-    fdRead : SOCKET_FD_SET;
-    tvTimeout : SOCKET_TIMEVAL;
-    diSelectResult : DINT;
-    socketResult : DINT;
-END_VAR
-```
-
-#### Program Body
-
-```pascal
-(* ── Input decoding ─────────────────────────────────────────────────── *)
-BP1        := (entradas_plc1 AND 16#01) <> 0;
-BP2        := (entradas_plc1 AND 16#02) <> 0;
-START      := (entradas_plc1 AND 16#04) <> 0;
-STOP       := (entradas_plc1 AND 16#08) <> 0;
-EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
-
-(* ── System ON/OFF logic ─────────────────────────────────────────────── *)
-IF NOT STOP OR NOT EMERGENCIA THEN
-    SISTEMA_ON := FALSE;
-END_IF;
-
-IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
-    SISTEMA_ON := TRUE;
-    LED_TEST := TRUE;
-END_IF;
-
-START_ANT := START;
-
-TON_LED(IN := LED_TEST, PT := T#1S);
-IF TON_LED.Q THEN
-    LED_TEST := FALSE;
-END_IF;
-
-(* ── Pneumatics ──────────────────────────────────────────────────────── *)
-IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
-    NEUMATICA_ON := TRUE;
-    NEUMATICA_OFF := FALSE;
-ELSE
-    NEUMATICA_ON := FALSE;
-    NEUMATICA_OFF := TRUE;
-END_IF;
-
-(* ── Suction cups ────────────────────────────────────────────────────── *)
-IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
-    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
-    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
-ELSE
-    VENTOSA_OMEGA_ON       := FALSE;
-    VENTOSA_PALETIZADOR_ON := FALSE;
-END_IF;
-
-VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
-VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
-
-(* ── LEDs ────────────────────────────────────────────────────────────── *)
-IF LED_TEST THEN
-    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
-    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
-ELSE
-    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
-    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
-    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
-    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
-    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
-    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
-    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
-    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
-END_IF;
-
-(* ── Pack output bytes ───────────────────────────────────────────────── *)
-salidas_plc1 := 0;
-IF VENTOSA_OMEGA_ON       THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
-IF VENTOSA_OMEGA_OFF      THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
-IF VENTOSA_PALETIZADOR_ON THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
-IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
-IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
-IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
-IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
-IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
-
-salidas_plc2 := 0;
-IF LED2         THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
-IF LED1         THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
-IF LED4         THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
-IF LED3         THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
-IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
-IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
-
-(* ── TCP Server: create + bind + listen (once) ───────────────────────── *)
-IF NOT xServerCreated THEN
-    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
-
-    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
-        serverSockAddr.sin_family := SOCKET_AF_INET;
-        serverSockAddr.sin_port   := SysSockHtons(serverPort);
-        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
-
-        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
-            IF SysSockListen(hServer, 1) = 0 THEN
-                xServerCreated := TRUE;
-            END_IF;
-        ELSE
-            SysSockClose(hServer);
-            hServer := RTS_INVALID_HANDLE;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP Server: accept new client (non-blocking via SysSockSelect) ──── *)
-IF xServerCreated AND NOT xClientConnected THEN
-    fdRead.fd_count    := 1;
-    fdRead.fd_array[0] := hServer;
-    tvTimeout.tv_sec   := 0;
-    tvTimeout.tv_usec  := 0;
-
-    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
-
-    IF diSelectResult > 0 THEN
-        addrLen := SIZEOF(clientSockAddr);
-        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
-
-        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
-            xClientConnected      := TRUE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-            bPktReceived          := FALSE;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP: receive Unity command packet (non-blocking) ────────────────── *)
-IF xClientConnected THEN
-    fdRead.fd_count    := 1;
-    fdRead.fd_array[0] := hClient;
-    tvTimeout.tv_sec   := 0;
-    tvTimeout.tv_usec  := 0;
-
-    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
-
-    IF diSelectResult > 0 THEN
-        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
-
-        IF nBytesReceived > 0 THEN
-            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
-                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
-                TCP_COMANDOS_LEDS     := rxBuffer[2];
-                bPktReceived          := TRUE;
-            END_IF;
-        ELSE
-            SysSockClose(hClient);
-            hClient           := RTS_INVALID_HANDLE;
-            xClientConnected  := FALSE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP: send status packet to Unity every 50 ms ────────────────────── *)
-IF xClientConnected THEN
-    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
-
-    IF tSendTimer.Q THEN
-        txBuffer[0] := 16#BB;
-        txBuffer[1] := salidas_plc1;
-        txBuffer[2] := salidas_plc2;
-        txBuffer[3] := entradas_plc1;
-        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
-
-        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
-
-        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
-            SysSockClose(hClient);
-            hClient           := RTS_INVALID_HANDLE;
-            xClientConnected  := FALSE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── Watchdog: disconnect if no packet in 3 s ────────────────────────── *)
-tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
-
-IF tNoDataTimer.Q THEN
-    SysSockClose(hClient);
-    hClient           := RTS_INVALID_HANDLE;
-    xClientConnected  := FALSE;
-    TCP_COMANDOS_VENTOSAS := 0;
-    TCP_COMANDOS_LEDS     := 0;
-END_IF;
-
-bPktReceived := FALSE;
-```
-
-**Key implementation notes:**
-
-| Technique | Reason |
-|-----------|--------|
-| `SysSockSelect` with `tvTimeout = {0, 0}` | Non-blocking check — PLC cycle never stalls on recv |
-| Always send every 50 ms via `tSendTimer` | Unity heartbeat times out recv on its own thread within 50 ms |
-| `nBytesReceived <= 0` disconnect | Catches both graceful close (0) and RST/error (−1) |
-| `tNoDataTimer T#3S` watchdog | Drops client if Unity crashes without closing the socket |
-| All `SysSock*` calls use positional params | Named parameters not supported in CODESYS 3.5 SP9 P1 |
-| `hServer`/`hClient` initialized to `RTS_INVALID_HANDLE` | Prevents use of uninitialized handle on first cycle |
+| Technique | Benefit |
+|-----------|---------|
+| `SysSockSelect` with zero timeout | Non-blocking socket I/O — PLC scan cycle never stalls |
+| 50 ms `tSendTimer` heartbeat | Deterministic update rate; Unity thread times out cleanly |
+| `tNoDataTimer` 3 s watchdog | Auto-disconnects if Unity crashes without closing the socket |
+| `nBytesReceived <= 0` disconnect | Handles both graceful close (0) and RST/error (−1) |
+| Positional `SysSock*` parameters | Required by CODESYS V3.5 SP9 P1 — named params unsupported |
 
 ---
 
@@ -571,46 +314,38 @@ FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simulates the full pneumatic ci
 
 ```mermaid
 graph LR
-    subgraph CODESYS_CMD["CODESYS 3.5.15.40 — Actuator Commands"]
-        PLC1["salidas_plc1<br/>bits 0–3: ventosa solenoids<br/>bits 4–7: LED5·6·7·8"]
-        PLC2["salidas_plc2<br/>bits 0–3: LED1·2·3·4<br/>bits 4–5: NEUMATICA_OFF/ON"]
+    subgraph CMD["CODESYS Outputs"]
+        direction TB
+        PLC1["salidas_plc1\nbits 0–3 · ventosa solenoids\nbits 4–7 · LED5-8"]
+        PLC2["salidas_plc2\nbits 0–3 · LED1-4\nbits 4–5 · NEUMATICA"]
     end
 
     subgraph ACT["FluidSIM In — Actuators"]
-        V1["1M1/1M2 · 5/2 valve · Omega"]
-        V2["2M1/2M2 · 5/2 valve · Paletizador"]
-        V3["3M1/3M2 · 5/2 valve · Main pneumatics"]
-        LC1["Cart 1 LEDs · LED1–4"]
-        LC2["Cart 2 LEDs · LED5–8"]
+        direction TB
+        V1["1M1/1M2 · 5/2 valve\nOmega suction cup"]
+        V2["2M1/2M2 · 5/2 valve\nPaletizador suction cup"]
+        V3["3M1/3M2 · 5/2 valve\nMain pneumatic supply"]
+        LC["LED panels\nLED1–4 · LED5–8"]
     end
 
-    subgraph PHYS["Physical Pneumatic Circuit"]
-        CUP_O["Omega suction cup<br/>(picks PCB · Tapa · Drone)"]
-        CUP_P["Paletizador suction cup<br/>(picks completed drone)"]
-        MAIN["Pneumatic supply<br/>(compressor circuit)"]
-    end
-
-    subgraph FEED["FluidSIM Out — Sensor Feedback"]
-        FB["BP1 · BP2 · START · STOP · EMERGENCIA"]
-        CODESYS_IN["entradas_plc1<br/>bits 0–4: BP1·BP2·START·STOP·EMERG"]
-        FB -->|"Module 2 · FluidSIM Out"| CODESYS_IN
+    subgraph SENS["FluidSIM Out — Sensor Feedback → entradas_plc1"]
+        direction TB
+        S1["1BP1 · grip confirm Omega\n→ BP1 bit 0"]
+        S2["1BP2 · grip confirm Paletizador\n→ BP2 bit 1"]
+        S3["Physical buttons\nSTART · STOP · EMERGENCIA\nbits 2–4"]
     end
 
     PLC1 -->|"bits 0–1"| V1
     PLC1 -->|"bits 2–3"| V2
-    PLC1 -->|"bits 4–7"| LC2
+    PLC1 -->|"bits 4–7"| LC
     PLC2 -->|"bits 4–5"| V3
-    PLC2 -->|"bits 0–3"| LC1
-    V1 --> CUP_O
-    V2 --> CUP_P
-    V3 --> MAIN
-    CUP_O -->|"1BP1 feedback"| FB
-    CUP_P -->|"1BP2 feedback"| FB
+    PLC2 -->|"bits 0–3"| LC
+    V1 -->|"pressure sensor"| S1
+    V2 -->|"pressure sensor"| S2
 
-    style CODESYS_CMD fill:#8b0000,color:#fff,stroke:#8b0000
-    style FEED fill:#1a3a5c,color:#fff,stroke:#1a3a5c
-    style ACT fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style PHYS fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    style CMD  fill:#8b0000,color:#fff,stroke:#c0392b
+    style ACT  fill:#1a5c2a,color:#fff,stroke:#27ae60
+    style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
 
 ---
@@ -620,49 +355,54 @@ graph LR
 ### Component Diagram
 
 ```mermaid
-graph LR
+graph TB
     subgraph DATA["Data & Spawning"]
-        JF[(StreamingAssets<br/>8 pose files)]
-        P["Produccion.cs"] -->|staggered spawn| SP["Spawners<br/>parts + boxes"]
+        direction LR
+        JF[(StreamingAssets · 8 pose files)]
+        SP["Spawners · parts + boxes"]
+        P["Produccion.cs"] -->|staggered spawn| SP
     end
 
-    subgraph CELL["Assembly Cell"]
-        B1["Alpha · Brazos<br/>Base · Motors ×2 · Hélices ×2"]
-        B2["Beta · Brazos<br/>Motors ×2 · Hélices ×2"]
-        B3["Omega · Ventosa<br/>PCB · Tapa · drone transfer"]
+    subgraph CELL["Assembly Cell  ·  reads pose JSON"]
+        direction LR
+        B1["Alpha · Brazos\nBase · Motors ×2 · Hélices ×2"]
+        B2["Beta · Brazos\nMotors ×2 · Hélices ×2"]
+        B3["Omega · Ventosa\nPCB · Tapa · drone transfer"]
     end
 
     subgraph PAL["Palletizing"]
-        CARRO["CarroPaletizador.cs"] --> B4["Paletizador · Ventosa<br/>mecanum wheels"]
+        direction LR
+        CARRO["CarroPaletizador.cs"]
+        B4["Paletizador · Ventosa\nmecanum wheels"]
+        CARRO --> B4
         B4 --> C1["Cart 1"]
         B4 -.-> C2["Cart 2"]
     end
 
     subgraph AUTO["Industrial Automation"]
+        direction LR
         PLC["CODESYS 3.5.15.40"]
-        OPC["FluidSIM 4.2p Pneumatics"]
-        HW["BP1 · BP2 · START<br/>STOP · EMERGENCIA<br/><i>entradas_plc1</i>"]
-        PLC -->|"OPC DA · salidas_plc1/2<br/>NEUMATICA_ON/OFF"| OPC
+        OPC["FluidSIM 4.2p\nPneumatics · OPC DA"]
+        HW["BP1 · BP2 · START · STOP · EMERG\nentradas_plc1"]
+        PLC -->|"salidas_plc1/2 · OPC DA"| OPC
+        HW -->|"FluidSIM Out"| PLC
     end
 
-    SP -->|instantiates| CELL
-    JF -. read .-> B1
-    JF -. read .-> B2
-    JF -. read .-> B3
-    JF -. read .-> B4
-    B3 -->|transfers drone| B4
-    B3 -->|"TCP/IP · TCP_COMANDOS_*"| PLC
-    B4 -->|TCP/IP socket| PLC
-    HW -->|"FluidSIM Out · Module 2"| PLC
+    DATA --> CELL
+    JF -. pose .-> CELL
+    JF -. pose .-> PAL
+    SP -->|parts| CELL
+    B3 -->|"drone transfer"| B4
+    B3 & B4 -->|"TCP/IP · port 8888"| PLC
 
-    style B1 fill:#1D9E75,stroke:#085041,color:#fff
-    style B2 fill:#1D9E75,stroke:#085041,color:#fff
-    style B3 fill:#378ADD,stroke:#042C53,color:#fff
-    style B4 fill:#B75A34,stroke:#5C2506,color:#fff
+    style B1   fill:#1D9E75,stroke:#085041,color:#fff
+    style B2   fill:#1D9E75,stroke:#085041,color:#fff
+    style B3   fill:#378ADD,stroke:#042C53,color:#fff
+    style B4   fill:#B75A34,stroke:#5C2506,color:#fff
     style CARRO fill:#534AB7,stroke:#26215C,color:#fff
-    style PLC fill:#8b0000,color:#fff,stroke:#8b0000
-    style OPC fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    style PLC  fill:#8b0000,color:#fff,stroke:#8b0000
+    style OPC  fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW   fill:#4a4a4a,color:#fff,stroke:#4a4a4a
 ```
 
 ### Arm Configuration
@@ -1437,51 +1177,48 @@ IEnumerator Esperar(Func<bool> condicion)
 
 ### 14. Statistical Analysis & OEE Report (`Html/Analisis estadistico y OEE FINAL.html`)
 
-A self-contained interactive HTML report generated from a 100-cycle production run (2026-04-28, 60.37 min total). Built with **Chart.js 4.4.1** and **Barlow/Fira Code** typefaces; no server required — open directly in any browser.
-
-#### Key Metrics
-
-| Indicator | Value | Note |
-|-----------|-------|------|
-| **Cycles analyzed** | 100 | Full drone assembly cycles |
-| **Mean cycle time (μ)** | 32.00 s | Arithmetic mean |
-| **Std deviation (σ)** | 0.298 s | Population std dev |
-| **CV (Coeff. of variation)** | **0.93%** | < 5% → process under statistical control |
-| **Min / Max** | 31.44 s / 32.87 s | Drone #39 / Drone #1 |
-| **UCL (3σ)** | 32.894 s | Max observed just 0.024 s below |
-| **Points outside control limits** | 0 / 100 | Process fully stable |
+> Open `Html/Analisis estadistico y OEE FINAL.html` in any browser — self-contained, no server needed.  
+> n = 100 cycles · 2026-04-28 · 60.37 min total session
 
 #### OEE — Overall Equipment Effectiveness
 
-| Factor | Value | Formula |
-|--------|-------|---------|
-| **Availability** | 88.18% | Active time / Planned time (428 s non-productive) |
-| **Performance** | 98.43% | Ideal cycle (31.44 s) / Real cycle (32.00 s) |
-| **Quality** | 100.00% | 100 good drones / 100 produced, 0 rejects |
-| **OEE** | **86.80%** | Disp × Perf × Qual — **World-Class (≥ 85%)** |
+```
+ OEE  ████████████████████████░░░░  86.80 %   ✦ WORLD-CLASS  (≥ 85 %)
+ AVL  ██████████████████████░░░░░░  88.18 %   Active / Planned time
+ PRF  █████████████████████████░░░  98.43 %   Ideal cycle / Real cycle
+ QLT  ████████████████████████████ 100.00 %   0 rejects / 100 produced
+```
 
-#### Per-Arm Statistical Summary
+```mermaid
+pie showData
+    title OEE Loss Breakdown — 100 cycles
+    "Productive time (OEE 86.80%)" : 86.80
+    "Availability loss" : 10.47
+    "Performance loss"  : 1.57
+    "Quality loss"      : 0
+```
 
-| Arm | Mean (s) | σ (s) | CV (%) | Role |
-|-----|----------|-------|--------|------|
-| **Alpha** | 25.27 | 0.230 | 0.91 | Gripper — Base, Motors, Hélices |
-| **Beta** | 22.91 | 0.274 | 1.20 | Gripper — Motors, Hélices |
-| **Omega** | 29.50 | 0.264 | 0.89 | Suction — PCB, Tapa, transfer |
-| **Paletizador** | 5.37 | 0.618 | **11.5** | Suction — bimodal: ~4.6 s / ~6.0 s |
+#### Cycle Time — Statistical Control
 
-#### Report Sections
+```mermaid
+xychart-beta
+    title "Mean cycle time per arm (seconds)"
+    x-axis ["Alpha", "Beta", "Omega", "Paletizador"]
+    y-axis "seconds" 0 --> 35
+    bar [25.27, 22.91, 29.50, 5.37]
+```
 
-| # | Section | Content |
-|---|---------|---------|
-| 01 | Descriptive statistics | μ, σ, CV, IQR, skewness, kurtosis, IC 95%, histogram, box-plot, time series |
-| 02 | Per-arm statistics | Full table + medias/σ/CV bar charts + multi-arm box-plots |
-| 03 | Percentiles & CDF | P5–P99 per cycle; cumulative distribution function |
-| 04 | Correlation & trend | Linear regression (R²=0.018, no drift), ACF, cross-arm Pearson matrix |
-| 05 | Process capability | SPC control chart (0 out-of-control), bimodality analysis (Paletizador) |
-| 06 | Consolidated summary | Full statistics table — all variables |
-| 07 | OEE analysis | Gauge, factor cascade, rolling OEE W1–W10, loss breakdown, industry benchmark |
+| Arm | Mean (s) | σ (s) | CV | Notes |
+|-----|:--------:|:-----:|:--:|-------|
+| **Alpha** | 25.27 | 0.230 | 0.91% | Gripper — Base · Motors · Hélices |
+| **Beta** | 22.91 | 0.274 | 1.20% | Gripper — Motors · Hélices |
+| **Omega** | 29.50 | 0.264 | 0.89% | Suction — PCB · Tapa · transfer |
+| **Paletizador** | 5.37 | 0.618 | 11.5% | Suction — bimodal ~4.6 s / ~6.0 s |
 
-> ⚠ **Simulation context**: the OEE of 86.80% reflects ideal simulation conditions (no mechanical failures, deterministic cycle times). Real production OEE is typically 65–80%. Availability is the primary improvement lever — reducing the 428 s non-productive gap would directly raise OEE above 90%.
+> CV < 5% on all arms except Paletizador (bimodal path) — process fully under statistical control.  
+> μ = 32.00 s · σ = 0.298 s · UCL = 32.894 s · **0 / 100 points outside control limits**
+
+The interactive HTML report covers 7 sections: descriptive statistics, per-arm breakdown, percentiles & CDF, correlation & trend, SPC control chart, consolidated summary, and full OEE analysis with rolling gauge and loss cascade.
 
 ---
 
@@ -1981,15 +1718,7 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 | **SysSocket Interfaces** | 3.5.15.0 | Definiciones de interfaz para SysSocket |
 | **SysTypes2 Interfaces** | 3.5.15.0 | Definiciones de tipos primitivos usadas por las librerías Sys |
 
-Para agregar estas librerías en CODESYS, ir a **Herramientas → Library Manager → Agregar librería** y buscar cada una. A continuación se muestra cómo localizar **SysTypes2 Interfaces** y confirmar que las librerías **SysSocket** están correctamente instaladas:
-
-<div align="center">
-
-![Seleccionar SysTypes2 Interfaces](docs/codesys_systypes2_interfaces.png)
-
-![Librerías SysSocket confirmadas](docs/codesys_syssocket_libraries.png)
-
-</div>
+Agregar vía **Herramientas → Library Manager → Agregar librería**.
 
 ---
 
@@ -1998,52 +1727,35 @@ Para agregar estas librerías en CODESYS, ir a **Herramientas → Library Manage
 Las tres capas se comunican mediante dos protocolos: **TCP/IP** (Unity ↔ CODESYS) y **OPC DA** (CODESYS ↔ FluidSIM).
 
 ```mermaid
-graph TB
-    subgraph UNITY["Unity · CodesysTcpClient.cs"]
-        U1["Ventosa.cs · CarroPaletizador.cs"]
-        U2["TX → CODESYS<br/>[0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]<br/><i>3 bytes · cada 50 ms</i>"]
-        U3["RX ← CODESYS<br/>[0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]<br/><i>5 bytes · cada 50 ms</i>"]
-        U1 -->|empaqueta bits| U2
-    end
-
-    subgraph HW_IN["Entradas Físicas"]
-        H1["entradas_plc1<br/>BP1 · BP2 · START · STOP · EMERGENCIA"]
-    end
-
-    subgraph CODESYS["CODESYS V3.5 SP9 P1 · PLC_PRG · puerto 8888"]
+graph LR
+    subgraph UNITY["Unity  ·  CodesysTcpClient.cs"]
         direction TB
-        C2["PLC_PRG<br/>(SysSockSelect no bloqueante)"]
-        C3["salidas_plc1<br/>solenoides ventosa · LED5–8"]
-        C4["salidas_plc2<br/>LED1–4 · NEUMATICA_ON/OFF"]
-        C2 --> C3
-        C2 --> C4
+        UA["Ventosa.cs · CarroPaletizador.cs"]
+        UB["TX  ›  0xAA · VENTOSAS · LEDS\n3 bytes · cada 50 ms"]
+        UC["RX  ‹  0xBB · plc1 · plc2 · entradas · SISTEMA_ON\n5 bytes · cada 50 ms"]
+        UA --> UB
     end
-
-    subgraph HW_OUT["Salidas Físicas"]
-        H2["Ventosas · Omega / Paletizador"]
-        H3["Panel LED · LED1–LED8"]
+    subgraph PLC["CODESYS V3.5 SP9 P1  ·  puerto 8888"]
+        direction TB
+        PA["PLC_PRG\nSysSockSelect no bloqueante"]
+        PB["salidas_plc1\nsolenoides ventosa · LED5–8"]
+        PC["salidas_plc2\nLED1–4 · NEUMATICA"]
+        PA --> PB
+        PA --> PC
     end
-
-    subgraph FLUIDSIM["FluidSIM 4.2p Neumática · OPC DA"]
-        F1["NEUMATICA_ON / NEUMATICA_OFF"]
-        F2["Circuito Neumático + retroalimentación STOP/EMERGENCIA"]
-        F1 --> F2
+    subgraph OPC["FluidSIM 4.2p  ·  OPC DA"]
+        direction TB
+        FA["Circuito neumático\nNEUMATICA_ON / OFF"]
+        FB["Entradas físicas\nBP1 · BP2 · START · STOP · EMERG"]
     end
-
-    U2 -->|"TCP/IP · 127.0.0.1:8888"| C2
-    H1 -->|byte entrada| C2
-    C2 -->|"paquete de estado 5 bytes"| U3
-    C3 --> H2
-    C3 -->|LED5–8| H3
-    C4 -->|LED1–4| H3
-    C4 -->|"OPC DA · NEUMATICA_ON/OFF"| F1
-    F2 -->|"STOP/EMERGENCIA → NEUMATICA_OFF → salidas_plc2 bit4"| U3
-
-    style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
-    style HW_IN fill:#4a4a4a,color:#fff,stroke:#4a4a4a
-    style CODESYS fill:#8b0000,color:#fff,stroke:#8b0000
-    style FLUIDSIM fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style HW_OUT fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    UB -->|"TCP/IP"| PA
+    PA -->|"paquete 5 bytes"| UC
+    PB -->|"OPC"| FA
+    PC -->|"OPC"| FA
+    FB -->|"OPC"| PA
+    style UNITY fill:#1a3a5c,color:#fff,stroke:#4a6fa5
+    style PLC   fill:#8b0000,color:#fff,stroke:#c0392b
+    style OPC   fill:#1a5c2a,color:#fff,stroke:#27ae60
 ```
 
 ---
@@ -2133,258 +1845,22 @@ stateDiagram-v2
 
 ### Programa PLC CODESYS (`PLC_PRG`)
 
-Programa ST completo y funcional. Usa `SysSockSelect` con timeout cero para I/O de socket no bloqueante, de modo que el ciclo de tarea PLC nunca se bloquea en `SysSockRecv`.
+`PLC_PRG` es el programa en Texto Estructurado que actúa como núcleo de automatización de la celda. Sus responsabilidades principales son:
 
-#### Declaración de Variables (`VAR`)
+- **Servidor TCP en el puerto 8888** — acepta un único cliente Unity, recibe paquetes de 3 bytes (`0xAA · VENTOSAS · LEDS`) y devuelve paquetes de estado de 5 bytes (`0xBB · plc1 · plc2 · entradas · SISTEMA_ON`) cada 50 ms.
+- **Lógica de seguridad** — monitorea las entradas `STOP` y `EMERGENCIA`; cualquier señal LOW pone `SISTEMA_ON := FALSE` y corta la neumática de inmediato. El sistema solo arranca con un flanco ascendente de `START` y ambas señales en HIGH.
+- **Control de actuadores** — decodifica los bits de `TCP_COMANDOS_VENTOSAS` para accionar las electroválvulas de las dos ventosas (Omega y Paletizador), y los bits de `TCP_COMANDOS_LEDS` para los 8 indicadores LED vía OPC DA.
+- **Puente OPC DA** — publica `salidas_plc1/2` y lee `entradas_plc1` a través del servidor OPC de FluidSIM, sincronizando el circuito neumático virtual con Unity en tiempo real.
 
-```pascal
-PROGRAM PLC_PRG
-VAR
-    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
-    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
-    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+**Ventajas de diseño clave:**
 
-    VENTOSA_OMEGA_ON : BOOL;
-    VENTOSA_OMEGA_OFF : BOOL;
-    VENTOSA_PALETIZADOR_ON : BOOL;
-    VENTOSA_PALETIZADOR_OFF : BOOL;
-
-    LED1, LED2, LED3, LED4 : BOOL;
-    LED5, LED6, LED7, LED8 : BOOL;
-
-    TON_LED : TON;
-    tSendTimer : TON;
-    tNoDataTimer : TON;
-
-    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
-    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
-
-    serverSockAddr : SOCKADDRESS;
-    clientSockAddr : SOCKADDRESS;
-
-    addrLen : DINT;
-    serverPort : UINT := 8888;
-
-    xServerCreated : BOOL := FALSE;
-    xClientConnected : BOOL := FALSE;
-
-    rxBuffer : ARRAY[0..2] OF BYTE;
-    txBuffer : ARRAY[0..4] OF BYTE;
-
-    nBytesReceived : DINT;
-    nBytesSent : DINT;
-
-    TCP_COMANDOS_VENTOSAS : BYTE := 0;
-    TCP_COMANDOS_LEDS : BYTE := 0;
-
-    bPktReceived : BOOL := FALSE;
-
-    fdRead : SOCKET_FD_SET;
-    tvTimeout : SOCKET_TIMEVAL;
-    diSelectResult : DINT;
-    socketResult : DINT;
-END_VAR
-```
-
-#### Cuerpo del Programa
-
-```pascal
-(* ── Decodificación de entradas ──────────────────────────────────────── *)
-BP1        := (entradas_plc1 AND 16#01) <> 0;
-BP2        := (entradas_plc1 AND 16#02) <> 0;
-START      := (entradas_plc1 AND 16#04) <> 0;
-STOP       := (entradas_plc1 AND 16#08) <> 0;
-EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
-
-(* ── Lógica SISTEMA_ON / OFF ──────────────────────────────────────────── *)
-IF NOT STOP OR NOT EMERGENCIA THEN
-    SISTEMA_ON := FALSE;
-END_IF;
-
-IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
-    SISTEMA_ON := TRUE;
-    LED_TEST := TRUE;
-END_IF;
-
-START_ANT := START;
-
-TON_LED(IN := LED_TEST, PT := T#1S);
-IF TON_LED.Q THEN
-    LED_TEST := FALSE;
-END_IF;
-
-(* ── Neumática ───────────────────────────────────────────────────────── *)
-IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
-    NEUMATICA_ON := TRUE;
-    NEUMATICA_OFF := FALSE;
-ELSE
-    NEUMATICA_ON := FALSE;
-    NEUMATICA_OFF := TRUE;
-END_IF;
-
-(* ── Ventosas ────────────────────────────────────────────────────────── *)
-IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
-    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
-    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
-ELSE
-    VENTOSA_OMEGA_ON       := FALSE;
-    VENTOSA_PALETIZADOR_ON := FALSE;
-END_IF;
-
-VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
-VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
-
-(* ── LEDs ────────────────────────────────────────────────────────────── *)
-IF LED_TEST THEN
-    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
-    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
-ELSE
-    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
-    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
-    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
-    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
-    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
-    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
-    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
-    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
-END_IF;
-
-(* ── Empaquetar bytes de salida ──────────────────────────────────────── *)
-salidas_plc1 := 0;
-IF VENTOSA_OMEGA_ON        THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
-IF VENTOSA_OMEGA_OFF       THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
-IF VENTOSA_PALETIZADOR_ON  THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
-IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
-IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
-IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
-IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
-IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
-
-salidas_plc2 := 0;
-IF LED2          THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
-IF LED1          THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
-IF LED4          THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
-IF LED3          THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
-IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
-IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
-
-(* ── TCP Server: crear + bind + listen (una sola vez) ───────────────── *)
-IF NOT xServerCreated THEN
-    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
-
-    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
-        serverSockAddr.sin_family := SOCKET_AF_INET;
-        serverSockAddr.sin_port   := SysSockHtons(serverPort);
-        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
-
-        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
-            IF SysSockListen(hServer, 1) = 0 THEN
-                xServerCreated := TRUE;
-            END_IF;
-        ELSE
-            SysSockClose(hServer);
-            hServer := RTS_INVALID_HANDLE;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP Server: aceptar cliente (no bloqueante con SysSockSelect) ───── *)
-IF xServerCreated AND NOT xClientConnected THEN
-    fdRead.fd_count    := 1;
-    fdRead.fd_array[0] := hServer;
-    tvTimeout.tv_sec   := 0;
-    tvTimeout.tv_usec  := 0;
-
-    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
-
-    IF diSelectResult > 0 THEN
-        addrLen := SIZEOF(clientSockAddr);
-        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
-
-        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
-            xClientConnected      := TRUE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-            bPktReceived          := FALSE;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP: recibir paquete de comando de Unity (no bloqueante) ────────── *)
-IF xClientConnected THEN
-    fdRead.fd_count    := 1;
-    fdRead.fd_array[0] := hClient;
-    tvTimeout.tv_sec   := 0;
-    tvTimeout.tv_usec  := 0;
-
-    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
-
-    IF diSelectResult > 0 THEN
-        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
-
-        IF nBytesReceived > 0 THEN
-            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
-                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
-                TCP_COMANDOS_LEDS     := rxBuffer[2];
-                bPktReceived          := TRUE;
-            END_IF;
-        ELSE
-            SysSockClose(hClient);
-            hClient               := RTS_INVALID_HANDLE;
-            xClientConnected      := FALSE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── TCP: enviar paquete de estado a Unity cada 50 ms ───────────────── *)
-IF xClientConnected THEN
-    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
-
-    IF tSendTimer.Q THEN
-        txBuffer[0] := 16#BB;
-        txBuffer[1] := salidas_plc1;
-        txBuffer[2] := salidas_plc2;
-        txBuffer[3] := entradas_plc1;
-        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
-
-        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
-
-        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
-            SysSockClose(hClient);
-            hClient               := RTS_INVALID_HANDLE;
-            xClientConnected      := FALSE;
-            TCP_COMANDOS_VENTOSAS := 0;
-            TCP_COMANDOS_LEDS     := 0;
-        END_IF;
-    END_IF;
-END_IF;
-
-(* ── Watchdog: desconectar si no hay paquete en 3 s ─────────────────── *)
-tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
-
-IF tNoDataTimer.Q THEN
-    SysSockClose(hClient);
-    hClient               := RTS_INVALID_HANDLE;
-    xClientConnected      := FALSE;
-    TCP_COMANDOS_VENTOSAS := 0;
-    TCP_COMANDOS_LEDS     := 0;
-END_IF;
-
-bPktReceived := FALSE;
-```
-
-**Notas de implementación:**
-
-| Técnica | Motivo |
-|---------|--------|
-| `SysSockSelect` con `tvTimeout = {0, 0}` | No bloqueante — el ciclo PLC nunca se congela en recv |
-| Envío cada 50 ms con `tSendTimer` | El recv de Unity en su hilo propio retorna en ≤50 ms |
-| `nBytesReceived <= 0` para desconexión | Captura cierre gracioso (0) y RST/error (−1) |
-| Watchdog `tNoDataTimer T#3S` | Libera cliente si Unity se cierra sin cerrar el socket |
-| Parámetros posicionales en `SysSock*` | Los parámetros nombrados no existen en CODESYS 3.5 SP9 P1 |
-| `hServer`/`hClient` := `RTS_INVALID_HANDLE` | Evita usar un handle no inicializado en el primer ciclo |
+| Técnica | Ventaja |
+|---------|---------|
+| `SysSockSelect` con timeout cero | I/O de socket no bloqueante — el ciclo PLC nunca se congela |
+| Heartbeat `tSendTimer` de 50 ms | Tasa de actualización determinista; el hilo Unity retorna limpiamente |
+| Watchdog `tNoDataTimer` de 3 s | Desconexión automática si Unity se cierra sin cerrar el socket |
+| `nBytesReceived <= 0` para desconexión | Maneja cierre gracioso (0) y RST/error (−1) |
+| Parámetros posicionales en `SysSock*` | Requerido por CODESYS V3.5 SP9 P1 — parámetros nombrados no soportados |
 
 ---
 
@@ -2406,46 +1882,38 @@ FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simula el circuito neumático c
 
 ```mermaid
 graph LR
-    subgraph CODESYS_CMD["CODESYS 3.5.15.40 — Comandos de Actuadores"]
-        PLC1["salidas_plc1<br/>bits 0–3: solenoides ventosa<br/>bits 4–7: LED5·6·7·8"]
-        PLC2["salidas_plc2<br/>bits 0–3: LED1·2·3·4<br/>bits 4–5: NEUMATICA_OFF/ON"]
+    subgraph CMD["Salidas CODESYS"]
+        direction TB
+        PLC1["salidas_plc1\nbits 0–3 · solenoides ventosa\nbits 4–7 · LED5-8"]
+        PLC2["salidas_plc2\nbits 0–3 · LED1-4\nbits 4–5 · NEUMATICA"]
     end
 
     subgraph ACT["FluidSIM In — Actuadores"]
-        V1["1M1/1M2 · válvula 5/2 · Omega"]
-        V2["2M1/2M2 · válvula 5/2 · Paletizador"]
-        V3["3M1/3M2 · válvula 5/2 · Neumática principal"]
-        LC1["LEDs Carro 1 · LED1–4"]
-        LC2["LEDs Carro 2 · LED5–8"]
+        direction TB
+        V1["1M1/1M2 · válvula 5/2\nVentosa Omega"]
+        V2["2M1/2M2 · válvula 5/2\nVentosa Paletizador"]
+        V3["3M1/3M2 · válvula 5/2\nSuministro neumático"]
+        LC["Paneles LED\nLED1–4 · LED5–8"]
     end
 
-    subgraph PHYS["Circuito Neumático Físico"]
-        CUP_O["Ventosa Omega<br/>(recoge PCB · Tapa · Dron)"]
-        CUP_P["Ventosa Paletizador<br/>(recoge dron completo)"]
-        MAIN["Suministro neumático<br/>(circuito compresor)"]
-    end
-
-    subgraph FEED["FluidSIM Out — Retroalimentación de Sensores"]
-        FB["BP1 · BP2 · START · STOP · EMERGENCIA"]
-        CODESYS_IN["entradas_plc1<br/>bits 0–4: BP1·BP2·START·STOP·EMERG"]
-        FB -->|"Módulo 2 · FluidSIM Out"| CODESYS_IN
+    subgraph SENS["FluidSIM Out — Retroalimentación → entradas_plc1"]
+        direction TB
+        S1["1BP1 · confirmación agarre Omega\n→ BP1 bit 0"]
+        S2["1BP2 · confirmación agarre Paletizador\n→ BP2 bit 1"]
+        S3["Pulsadores físicos\nSTART · STOP · EMERGENCIA\nbits 2–4"]
     end
 
     PLC1 -->|"bits 0–1"| V1
     PLC1 -->|"bits 2–3"| V2
-    PLC1 -->|"bits 4–7"| LC2
+    PLC1 -->|"bits 4–7"| LC
     PLC2 -->|"bits 4–5"| V3
-    PLC2 -->|"bits 0–3"| LC1
-    V1 --> CUP_O
-    V2 --> CUP_P
-    V3 --> MAIN
-    CUP_O -->|"retroalimentación 1BP1"| FB
-    CUP_P -->|"retroalimentación 1BP2"| FB
+    PLC2 -->|"bits 0–3"| LC
+    V1 -->|"sensor de presión"| S1
+    V2 -->|"sensor de presión"| S2
 
-    style CODESYS_CMD fill:#8b0000,color:#fff,stroke:#8b0000
-    style FEED fill:#1a3a5c,color:#fff,stroke:#1a3a5c
-    style ACT fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style PHYS fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    style CMD  fill:#8b0000,color:#fff,stroke:#c0392b
+    style ACT  fill:#1a5c2a,color:#fff,stroke:#27ae60
+    style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
 
 ---
@@ -2455,49 +1923,54 @@ graph LR
 ### Diagrama de Componentes
 
 ```mermaid
-graph LR
+graph TB
     subgraph DATA["Datos y Spawn"]
-        JF[(StreamingAssets<br/>8 archivos de poses)]
-        P["Produccion.cs"] -->|spawn escalonado| SP["Spawners<br/>piezas + cajas"]
+        direction LR
+        JF[(StreamingAssets · 8 archivos de poses)]
+        SP["Spawners · piezas + cajas"]
+        P["Produccion.cs"] -->|spawn escalonado| SP
     end
 
-    subgraph CELL["Celda de Ensamblaje"]
-        B1["Alpha · Brazos<br/>Base · Motores ×2 · Hélices ×2"]
-        B2["Beta · Brazos<br/>Motores ×2 · Hélices ×2"]
-        B3["Omega · Ventosa<br/>PCB · Tapa · transferencia dron"]
+    subgraph CELL["Celda de Ensamblaje  ·  lee poses JSON"]
+        direction LR
+        B1["Alpha · Brazos\nBase · Motores ×2 · Hélices ×2"]
+        B2["Beta · Brazos\nMotores ×2 · Hélices ×2"]
+        B3["Omega · Ventosa\nPCB · Tapa · transferencia dron"]
     end
 
     subgraph PAL["Paletizado"]
-        CARRO["CarroPaletizador.cs"] --> B4["Paletizador · Ventosa<br/>ruedas mecanum"]
+        direction LR
+        CARRO["CarroPaletizador.cs"]
+        B4["Paletizador · Ventosa\nruedas mecanum"]
+        CARRO --> B4
         B4 --> C1["Carro 1"]
         B4 -.-> C2["Carro 2"]
     end
 
     subgraph AUTO["Automatización Industrial"]
+        direction LR
         PLC["CODESYS 3.5.15.40"]
-        OPC["FluidSIM 4.2p Neumática"]
-        HW["BP1 · BP2 · START<br/>STOP · EMERGENCIA<br/><i>entradas_plc1</i>"]
-        PLC -->|"OPC DA · salidas_plc1/2<br/>NEUMATICA_ON/OFF"| OPC
+        OPC["FluidSIM 4.2p\nNeumática · OPC DA"]
+        HW["BP1 · BP2 · START · STOP · EMERG\nentradas_plc1"]
+        PLC -->|"salidas_plc1/2 · OPC DA"| OPC
+        HW -->|"FluidSIM Out"| PLC
     end
 
-    SP -->|instancia| CELL
-    JF -. leen .-> B1
-    JF -. leen .-> B2
-    JF -. leen .-> B3
-    JF -. leen .-> B4
-    B3 -->|transfiere dron| B4
-    B3 -->|"TCP/IP · TCP_COMANDOS_*"| PLC
-    B4 -->|Socket TCP/IP| PLC
-    HW -->|"FluidSIM Out · Módulo 2"| PLC
+    DATA --> CELL
+    JF -. poses .-> CELL
+    JF -. poses .-> PAL
+    SP -->|piezas| CELL
+    B3 -->|"transferencia dron"| B4
+    B3 & B4 -->|"TCP/IP · puerto 8888"| PLC
 
-    style B1 fill:#1D9E75,stroke:#085041,color:#fff
-    style B2 fill:#1D9E75,stroke:#085041,color:#fff
-    style B3 fill:#378ADD,stroke:#042C53,color:#fff
-    style B4 fill:#B75A34,stroke:#5C2506,color:#fff
+    style B1   fill:#1D9E75,stroke:#085041,color:#fff
+    style B2   fill:#1D9E75,stroke:#085041,color:#fff
+    style B3   fill:#378ADD,stroke:#042C53,color:#fff
+    style B4   fill:#B75A34,stroke:#5C2506,color:#fff
     style CARRO fill:#534AB7,stroke:#26215C,color:#fff
-    style PLC fill:#8b0000,color:#fff,stroke:#8b0000
-    style OPC fill:#1a5c2a,color:#fff,stroke:#1a5c2a
-    style HW fill:#4a4a4a,color:#fff,stroke:#4a4a4a
+    style PLC  fill:#8b0000,color:#fff,stroke:#8b0000
+    style OPC  fill:#1a5c2a,color:#fff,stroke:#1a5c2a
+    style HW   fill:#4a4a4a,color:#fff,stroke:#4a4a4a
 ```
 
 ### Configuración de Brazos
@@ -3274,51 +2747,48 @@ IEnumerator Esperar(Func<bool> condicion)
 
 ### 14. Informe de Análisis Estadístico y OEE (`Html/Analisis estadistico y OEE FINAL.html`)
 
-Informe HTML interactivo autónomo generado a partir de una corrida de 100 ciclos de producción (2026-04-28, 60.37 min totales). Construido con **Chart.js 4.4.1** y tipografías **Barlow/Fira Code**; no requiere servidor — se abre directamente en cualquier navegador.
-
-#### Métricas Clave
-
-| Indicador | Valor | Nota |
-|-----------|-------|------|
-| **Ciclos analizados** | 100 | Ciclos completos de ensamblaje |
-| **Tiempo de ciclo medio (μ)** | 32.00 s | Media aritmética |
-| **Desviación típica (σ)** | 0.298 s | Desv. poblacional |
-| **CV (Coef. de variación)** | **0.93%** | < 5% → proceso bajo control estadístico |
-| **Mín / Máx** | 31.44 s / 32.87 s | Dron #39 / Dron #1 |
-| **UCL (3σ)** | 32.894 s | El máximo real quedó a solo 0.024 s del límite |
-| **Puntos fuera de control** | 0 / 100 | Proceso completamente estable |
+> Abrir `Html/Analisis estadistico y OEE FINAL.html` en cualquier navegador — autónomo, sin servidor.  
+> n = 100 ciclos · 2026-04-28 · 60.37 min sesión total
 
 #### OEE — Eficiencia Global del Equipo
 
-| Factor | Valor | Fórmula |
-|--------|-------|---------|
-| **Disponibilidad** | 88.18% | Tiempo activo / Tiempo planificado (428 s no productivos) |
-| **Rendimiento** | 98.43% | Ciclo ideal (31.44 s) / Ciclo real (32.00 s) |
-| **Calidad** | 100.00% | 100 drones buenos / 100 producidos, 0 rechazos |
-| **OEE** | **86.80%** | Disp × Rend × Cal — **Clase Mundial (≥ 85%)** |
+```
+ OEE  ████████████████████████░░░░  86.80 %   ✦ CLASE MUNDIAL  (≥ 85 %)
+ DIS  ██████████████████████░░░░░░  88.18 %   Tiempo activo / Tiempo planificado
+ REN  █████████████████████████░░░  98.43 %   Ciclo ideal / Ciclo real
+ CAL  ████████████████████████████ 100.00 %   0 rechazos / 100 producidos
+```
 
-#### Resumen Estadístico por Brazo
+```mermaid
+pie showData
+    title Desglose de Pérdidas OEE — 100 ciclos
+    "Tiempo productivo (OEE 86.80%)" : 86.80
+    "Pérdida Disponibilidad" : 10.47
+    "Pérdida Rendimiento"    : 1.57
+    "Pérdida Calidad"        : 0
+```
 
-| Brazo | Media (s) | σ (s) | CV (%) | Rol |
-|-------|-----------|-------|--------|-----|
-| **Alpha** | 25.27 | 0.230 | 0.91 | Pinza — Base, Motores, Hélices |
-| **Beta** | 22.91 | 0.274 | 1.20 | Pinza — Motores, Hélices |
-| **Omega** | 29.50 | 0.264 | 0.89 | Ventosa — PCB, Tapa, transferencia |
-| **Paletizador** | 5.37 | 0.618 | **11.5** | Ventosa — bimodal: ~4.6 s / ~6.0 s |
+#### Tiempo de Ciclo — Control Estadístico
 
-#### Secciones del Informe
+```mermaid
+xychart-beta
+    title "Tiempo de ciclo medio por brazo (segundos)"
+    x-axis ["Alpha", "Beta", "Omega", "Paletizador"]
+    y-axis "segundos" 0 --> 35
+    bar [25.27, 22.91, 29.50, 5.37]
+```
 
-| # | Sección | Contenido |
-|---|---------|-----------|
-| 01 | Estadística descriptiva | μ, σ, CV, IQR, asimetría, curtosis, IC 95%, histograma, box-plot, serie temporal |
-| 02 | Estadística por brazo | Tabla completa + gráficas de medias/σ/CV + box-plots superpuestos |
-| 03 | Percentiles y FDA | P5–P99 por ciclo; función de distribución acumulada |
-| 04 | Correlación y tendencia | Regresión lineal (R²=0.018, sin drift), ACF, matriz Pearson entre brazos |
-| 05 | Capacidad del proceso | Carta de control SPC (0 fuera de control), análisis de bimodalidad (Paletizador) |
-| 06 | Resumen consolidado | Tabla completa de estadísticos — todas las variables |
-| 07 | Análisis OEE | Gauge, cascada de factores, OEE rolling W1–W10, análisis de pérdidas, benchmark industrial |
+| Brazo | Media (s) | σ (s) | CV | Notas |
+|-------|:---------:|:-----:|:--:|-------|
+| **Alpha** | 25.27 | 0.230 | 0.91% | Pinza — Base · Motores · Hélices |
+| **Beta** | 22.91 | 0.274 | 1.20% | Pinza — Motores · Hélices |
+| **Omega** | 29.50 | 0.264 | 0.89% | Ventosa — PCB · Tapa · transferencia |
+| **Paletizador** | 5.37 | 0.618 | 11.5% | Ventosa — bimodal ~4.6 s / ~6.0 s |
 
-> ⚠ **Contexto de simulación**: el OEE de 86.80% refleja condiciones ideales de simulación (sin fallos mecánicos, tiempos de ciclo deterministas). En producción real se espera un OEE entre 65–80%. La Disponibilidad es la principal palanca de mejora — reducir los 428 s no productivos llevaría el OEE por encima del 90%.
+> CV < 5% en todos los brazos excepto Paletizador (ruta bimodal) — proceso completamente bajo control estadístico.  
+> μ = 32.00 s · σ = 0.298 s · UCL = 32.894 s · **0 / 100 puntos fuera de los límites de control**
+
+El informe HTML incluye 7 secciones interactivas: estadística descriptiva, desglose por brazo, percentiles y FDA, correlación y tendencia, carta de control SPC, resumen consolidado y análisis OEE completo con gauge rolling y cascada de pérdidas.
 
 ---
 
