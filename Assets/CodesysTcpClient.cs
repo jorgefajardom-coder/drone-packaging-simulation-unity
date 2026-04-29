@@ -1,226 +1,215 @@
 using System;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using UnityEngine;
 
 public class CodesysTcpClient : MonoBehaviour
 {
-    [Header("Conexión")]
-    public string codesysIP = "127.0.0.1";
-    public int codesysPort = 8888;
-    public float reconnectInterval = 3f;
+    [Header("Conexi�n")]
+    public string ip = "127.0.0.1";
+    public int port = 8888;
+    public float reconnectTime = 3f;
 
-    [Header("Estado (solo lectura)")]
+    [Header("Estado")]
     public bool isConnected = false;
 
-    // Bytes que Unity ENVÍA a CODESYS
-    [HideInInspector] public byte TCP_COMANDOS_VENTOSAS = 0x00;
-    [HideInInspector] public byte TCP_COMANDOS_LEDS = 0x00;
+    // ENV�O
+    public byte TCP_COMANDOS_VENTOSAS = 0x00;
+    public byte TCP_COMANDOS_LEDS = 0x00;
 
-    // Bytes que Unity RECIBE desde CODESYS
-    [HideInInspector] public byte salidas_plc1 = 0x00;
-    [HideInInspector] public byte salidas_plc2 = 0x00;
-    [HideInInspector] public byte entradas_plc1 = 0x00;
+    // RECEPCI�N
+    public byte salidas_plc1;
+    public byte salidas_plc2;
+    public byte entradas_plc1;
 
-    // Flags de estado derivados de salidas_plc
-    [HideInInspector] public bool VENTOSA_OMEGA_ON = false;
-    [HideInInspector] public bool VENTOSA_OMEGA_OFF = false;
-    [HideInInspector] public bool VENTOSA_PALET_ON = false;
-    [HideInInspector] public bool VENTOSA_PALET_OFF = false;
-    [HideInInspector] public bool LED1, LED2, LED3, LED4;
-    [HideInInspector] public bool LED5, LED6, LED7, LED8;
-    [HideInInspector] public bool NEUMATICA_ON = false;
-    [HideInInspector] public bool NEUMATICA_OFF = false;
-    [HideInInspector] public bool SISTEMA_ON = false;
+    public bool SISTEMA_ON;
 
-    // Evento para log de UI
+    // EVENTO PARA HMI
     public event Action<string> OnLogMessage;
 
-    private TcpClient _client;
-    private NetworkStream _stream;
-    private Thread _receiveThread;
-    private Thread _sendThread;
-    private bool _running = false;
-    private float _reconnectTimer = 0f;
+    private TcpClient client;
+    private NetworkStream stream;
+    private Thread recvThread;
+    private Thread sendThread;
+    private bool running = false;
 
-    private byte _lastVentosas = 0xFF;
-    private byte _lastLeds = 0xFF;
+    private float reconnectTimer = 0f;
 
-    // Protocolo: paquete de 3 bytes enviado a CODESYS
-    // [0] = 0xAA (header)
-    // [1] = TCP_COMANDOS_VENTOSAS
-    // [2] = TCP_COMANDOS_LEDS
-    private const byte HEADER_TX = 0xAA;
+    private readonly object _lock = new object();
 
-    // Protocolo: paquete de 4 bytes recibido desde CODESYS
-    // [0] = 0xBB (header)
-    // [1] = salidas_plc1
-    // [2] = salidas_plc2
-    // [3] = entradas_plc1
-    private const byte HEADER_RX = 0xBB;
-    private const int RX_PACKET_SIZE = 4;
-
-    // Agrega este campo privado:
-    private readonly object _lockBytes = new object();
+    // ===================== UNITY =====================
 
     void Start()
     {
-        ConnectToCodesys();
+        Connect();
     }
 
     void Update()
     {
         if (!isConnected)
         {
-            _reconnectTimer += Time.deltaTime;
-            if (_reconnectTimer >= reconnectInterval)
+            reconnectTimer += Time.deltaTime;
+
+            if (reconnectTimer >= reconnectTime)
             {
-                _reconnectTimer = 0f;
-                ConnectToCodesys();
+                reconnectTimer = 0f;
+                Connect();
             }
         }
     }
 
-    void ConnectToCodesys()
+    // ===================== LOG =====================
+
+    void Log(string msg)
+    {
+        Debug.Log(msg);
+        OnLogMessage?.Invoke(msg);
+    }
+
+    // ===================== CONEXI�N =====================
+
+    void Connect()
     {
         try
         {
-            CleanupConnection();
-            _lastVentosas = 0xFF;
-            _lastLeds = 0xFF;
+            Cleanup();
 
-            _client = new TcpClient();
+            client = new TcpClient();
+            client.Connect(ip, port);
 
-            // Conexión con timeout de 2s para no bloquear Unity
-            IAsyncResult result = _client.BeginConnect(codesysIP, codesysPort, null, null);
-            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(2));
+            stream = client.GetStream();
 
-            if (!success || !_client.Connected)
-            {
-                _client.Close();
-                isConnected = false;
-                Log("[TCP] Timeout de conexión");
-                return;
-            }
-
-            _client.EndConnect(result);
-            _stream = _client.GetStream();
-            _running = true;
+            running = true;
             isConnected = true;
 
-            _receiveThread = new Thread(ReceiveLoop) { IsBackground = true };
-            _receiveThread.Start();
+            recvThread = new Thread(ReceiveLoop);
+            recvThread.IsBackground = true;
+            recvThread.Start();
 
-            _sendThread = new Thread(SendLoop) { IsBackground = true };
-            _sendThread.Start();
+            sendThread = new Thread(SendLoop);
+            sendThread.IsBackground = true;
+            sendThread.Start();
 
-            Log($"[TCP] Conectado a CODESYS {codesysIP}:{codesysPort}");
+            Log("[TCP] Conectado");
         }
         catch (Exception e)
         {
             isConnected = false;
-            Log($"[TCP] Error de conexión: {e.Message}");
+            Log("[TCP] Error conexi�n: " + e.Message);
         }
     }
 
+    void Cleanup()
+    {
+        running = false;
+        isConnected = false;
+
+        try { stream?.Close(); } catch { }
+        try { client?.Close(); } catch { }
+
+        try { recvThread?.Join(500); } catch { }
+        try { sendThread?.Join(500); } catch { }
+
+        stream = null;
+        client = null;
+    }
+
+    void Disconnect()
+    {
+        Cleanup();
+        Log("[TCP] Desconectado");
+    }
+
+    // ===================== ENV�O =====================
+
     void SendLoop()
     {
-        while (_running && _stream != null)
+        while (running)
         {
             try
             {
                 byte v, l;
-                lock (_lockBytes)
+
+                lock (_lock)
                 {
                     v = TCP_COMANDOS_VENTOSAS;
                     l = TCP_COMANDOS_LEDS;
                 }
 
-                if (v != _lastVentosas || l != _lastLeds)
-                {
-                    byte[] packet = new byte[] { HEADER_TX, v, l };
-                    _stream.Write(packet, 0, packet.Length);
-                    _lastVentosas = v;
-                    _lastLeds = l;
-                }
+                byte[] pkt = new byte[] { 0xAA, v, l };
+                stream.Write(pkt, 0, pkt.Length);
             }
             catch (Exception e)
             {
-                Log($"[TCP] Error de envío: {e.Message}");
-                HandleDisconnect();
+                Log("[TCP] Error env�o: " + e.Message);
+                Disconnect();
                 break;
             }
+
             Thread.Sleep(50);
         }
     }
 
+    // ===================== RECEPCI�N =====================
+
     void ReceiveLoop()
     {
-        byte[] buffer = new byte[RX_PACKET_SIZE];
-        int bytesRead = 0;
+        byte[] buffer = new byte[4];
 
-        while (_running && _stream != null)
+        while (running)
         {
             try
             {
-                int b = _stream.ReadByte();
-                if (b < 0) { HandleDisconnect(); break; }
+                int header = stream.ReadByte();
 
-                if ((byte)b == HEADER_RX)
+                if (header < 0)
                 {
-                    bytesRead = 0;
-                    while (bytesRead < RX_PACKET_SIZE - 1)
+                    Disconnect();
+                    break;
+                }
+
+                if (header == 0xBB)
+                {
+                    int read = 0;
+
+                    while (read < 4)
                     {
-                        int r = _stream.Read(buffer, bytesRead, RX_PACKET_SIZE - 1 - bytesRead);
-                        if (r <= 0) { HandleDisconnect(); return; }
-                        bytesRead += r;
+                        int r = stream.Read(buffer, read, 4 - read);
+
+                        if (r <= 0)
+                        {
+                            Disconnect();
+                            return;
+                        }
+
+                        read += r;
                     }
-                    ParseReceivedPacket(buffer);
+
+                    lock (_lock)
+                    {
+                        salidas_plc1 = buffer[0];
+                        salidas_plc2 = buffer[1];
+                        entradas_plc1 = buffer[2];
+                        SISTEMA_ON = buffer[3] != 0;
+                    }
                 }
             }
             catch (Exception e)
             {
-                if (_running) Log($"[TCP] Error de recepción: {e.Message}");
-                HandleDisconnect();
+                if (running)
+                    Log("[TCP] Error recepci�n: " + e.Message);
+
+                Disconnect();
                 break;
             }
         }
     }
 
-    void ParseReceivedPacket(byte[] data)
-    {
-        salidas_plc1 = data[0];
-        salidas_plc2 = data[1];
-        entradas_plc1 = data[2];
-
-        // salidas_plc1 desglose
-        VENTOSA_OMEGA_ON = (salidas_plc1 & 0x01) != 0;
-        VENTOSA_OMEGA_OFF = (salidas_plc1 & 0x02) != 0;
-        VENTOSA_PALET_ON = (salidas_plc1 & 0x04) != 0;
-        VENTOSA_PALET_OFF = (salidas_plc1 & 0x08) != 0;
-        LED7 = (salidas_plc1 & 0x10) != 0;
-        LED8 = (salidas_plc1 & 0x20) != 0;
-        LED5 = (salidas_plc1 & 0x40) != 0;
-        LED6 = (salidas_plc1 & 0x80) != 0;
-
-        // salidas_plc2 desglose
-        LED2 = (salidas_plc2 & 0x01) != 0;
-        LED1 = (salidas_plc2 & 0x02) != 0;
-        LED4 = (salidas_plc2 & 0x04) != 0;
-        LED3 = (salidas_plc2 & 0x08) != 0;
-        NEUMATICA_OFF = (salidas_plc2 & 0x10) != 0;
-        NEUMATICA_ON = (salidas_plc2 & 0x20) != 0;
-
-        // entradas_plc1: SISTEMA_ON se refleja en bit START lógico
-        SISTEMA_ON = (entradas_plc1 & 0x04) != 0; // bit2 = START enclavado
-    }
-
-    // ── API pública ─────────────────────────────────────────────────────────
+    // ===================== API =====================
 
     public void SetVentosaOmega(bool on)
     {
-        lock (_lockBytes)
+        lock (_lock)
         {
             if (on) TCP_COMANDOS_VENTOSAS |= 0x01;
             else TCP_COMANDOS_VENTOSAS &= 0xFE;
@@ -229,64 +218,43 @@ public class CodesysTcpClient : MonoBehaviour
 
     public void SetVentosaPaletizador(bool on)
     {
-        lock (_lockBytes)
+        lock (_lock)
         {
             if (on) TCP_COMANDOS_VENTOSAS |= 0x02;
             else TCP_COMANDOS_VENTOSAS &= 0xFD;
         }
     }
 
-    public void SetLed(int ledIndex, bool on)
+    public void SetLed(int index, bool on)
     {
-        if (ledIndex < 1 || ledIndex > 8) return;
-        byte mask = (byte)(1 << (ledIndex - 1));
-        if (on) TCP_COMANDOS_LEDS |= mask;
-        else TCP_COMANDOS_LEDS &= (byte)~mask;
+        if (index < 1 || index > 8) return;
+
+        byte mask = (byte)(1 << (index - 1));
+
+        lock (_lock)
+        {
+            if (on) TCP_COMANDOS_LEDS |= mask;
+            else TCP_COMANDOS_LEDS &= (byte)~mask;
+        }
     }
 
     public void SetAllLeds(bool on)
     {
-        TCP_COMANDOS_LEDS = on ? (byte)0xFF : (byte)0x00;
+        lock (_lock)
+        {
+            TCP_COMANDOS_LEDS = on ? (byte)0xFF : (byte)0x00;
+        }
     }
 
-    // ── Internos ─────────────────────────────────────────────────────────────
-
-    void HandleDisconnect()
-    {
-        if (!isConnected) return;
-        isConnected = false;
-        _running = false;
-        Log("[TCP] Desconectado de CODESYS");
-    }
-
-    void CleanupConnection()
-    {
-        _running = false;
-        try { _stream?.Close(); } catch { }
-        try { _client?.Close(); } catch { }
-        _stream = null;
-        _client = null;
-
-        // Esperar que los hilos terminen antes de crear nuevos
-        try { _receiveThread?.Join(500); } catch { }
-        try { _sendThread?.Join(500); } catch { }
-        _receiveThread = null;
-        _sendThread = null;
-    }
-
-    void Log(string msg)
-    {
-        Debug.Log(msg);
-        OnLogMessage?.Invoke(msg);
-    }
+    // ===================== UNITY =====================
 
     void OnApplicationQuit()
     {
-        CleanupConnection();
+        Disconnect();
     }
 
     void OnDestroy()
     {
-        CleanupConnection();
+        Disconnect();
     }
 }
