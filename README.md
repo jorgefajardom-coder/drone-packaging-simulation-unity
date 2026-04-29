@@ -1180,6 +1180,7 @@ IEnumerator Esperar(Func<bool> condicion)
 ```
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '14px'}}}%%
 pie showData
     title OEE Loss Breakdown — 100 cycles
     "Productive time (OEE 86.80%)" : 86.80
@@ -1190,6 +1191,7 @@ pie showData
 #### Cycle Time — Statistical Control
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'xyChart': {'plotColorPalette': '#1D9E75,#1D9E75,#378ADD,#B75A34'}}}}%%
 xychart-beta
     title "Mean cycle time per arm (seconds)"
     x-axis ["Alpha", "Beta", "Omega", "Paletizador"]
@@ -2739,6 +2741,7 @@ IEnumerator Esperar(Func<bool> condicion)
 ```
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'pie1': '#1D9E75', 'pie2': '#8b0000', 'pie3': '#B75A34', 'pieTextColor': '#fff', 'pieTitleTextColor': '#222', 'pieSectionTextSize': '14px'}}}%%
 pie showData
     title Desglose de Pérdidas OEE — 100 ciclos
     "Tiempo productivo (OEE 86.80%)" : 86.80
@@ -2749,6 +2752,7 @@ pie showData
 #### Tiempo de Ciclo — Control Estadístico
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {'xyChart': {'plotColorPalette': '#1D9E75,#1D9E75,#378ADD,#B75A34'}}}}%%
 xychart-beta
     title "Tiempo de ciclo medio por brazo (segundos)"
     x-axis ["Alpha", "Beta", "Omega", "Paletizador"]
