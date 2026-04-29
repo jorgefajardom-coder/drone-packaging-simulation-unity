@@ -17,6 +17,12 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 ![Simulation Overview](docs/simulation_overview.png)
 > *Isometric view of the robotic assembly cell  -  4 articulated arms (Alpha, Beta, Omega, Paletizador) with mecanum wheels.*
 
+<br/>
+
+[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
+
+> *Full simulation run — assembly, palletizing, and cart swap with CODESYS & FluidSIM integration.*
+
 </div>
 
 ---
@@ -26,8 +32,28 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Overview](#overview)
 - [Technical Stack](#technical-stack)
 - [CODESYS & FluidSIM Integration](#codesys--fluidsim-integration)
+  - [Tool Versions](#tool-versions)
+  - [Communication Architecture](#communication-architecture)
+  - [Variable Map](#variable-map)
+  - [Safety & Control Logic](#safety--control-logic)
+  - [CODESYS PLC Program](#codesys-plc-program-plc_prg)
+  - [FluidSIM Pneumatic Simulation](#fluidsim-pneumatic-simulation)
 - [System Architecture](#system-architecture)
 - [Implemented Systems](#implemented-systems)
+  - [1. Gripper System](#1-gripper-system-brazoscs)
+  - [2. Suction Cup System](#2-suction-cup-system-ventosacs)
+  - [3. JSON Motion Sequencer](#3-json-motion-sequencer)
+  - [4. Decentralized Motion Architecture](#4-decentralized-motion-architecture)
+  - [5. Drone Unification](#5-drone-unification-dronlistocs)
+  - [6. Palletizer Navigation](#6-palletizer-navigation-carropaletizadords)
+  - [7. Snap Mechanics](#7-snap-mechanics)
+  - [8. Race Condition Prevention](#8-race-condition-prevention)
+  - [9. Production Spawner](#9-production-spawner-produccioncs)
+  - [10. Box Lid Closure and Cart Retirement](#10-box-lid-closure-and-cart-retirement)
+  - [11. HMI Dashboard](#11-hmi-dashboard-hmimanagercs--codesystcpclientcs)
+  - [12. Safety Vision System](#12-safety-vision-system)
+  - [13. STOP / EMERGENCIA Pause](#13-stop--emergencia-pause-produccioncs)
+  - [14. Statistical Analysis & OEE Report](#14-statistical-analysis--oee-report-htmlanalisis-estadistico-y-oee-finalhtml)
 - [Project Structure](#project-structure)
 - [Installation](#installation)
 - [Resolved Issues](#resolved-issues)
@@ -109,7 +135,7 @@ Physics.IgnoreCollision // Dynamic collision control
 
 | Tool | Version | Vendor |
 |------|---------|--------|
-| **CODESYS** | 3.5.15.40 | 3S-Smart Software Solutions GmbH |
+| **CODESYS** | 3.5.15.40 (V3.5 SP9 P1) | 3S-Smart Software Solutions GmbH |
 | **FluidSIM** | 4.2p / 1.67 Pneumatics (19.02.2010) | Festo Didactic GmbH & Co. KG |
 
 #### Required CODESYS Libraries
@@ -134,13 +160,14 @@ To add these libraries in CODESYS, go to **Tools → Library Manager → Add Lib
 
 ### Communication Architecture
 
-The three layers communicate over two protocols: **TCP** (Unity ↔ CODESYS) and **OPC** (CODESYS ↔ FluidSIM).
+The three layers communicate over two protocols: **TCP/IP** (Unity ↔ CODESYS) and **OPC DA** (CODESYS ↔ FluidSIM).
 
 ```mermaid
 graph TB
-    subgraph UNITY["Unity"]
+    subgraph UNITY["Unity · CodesysTcpClient.cs"]
         U1["Ventosa.cs · CarroPaletizador.cs"]
-        U2["TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte each</i>"]
+        U2["TX → CODESYS<br/>[0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]<br/><i>3 bytes · every 50 ms</i>"]
+        U3["RX ← CODESYS<br/>[0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]<br/><i>5 bytes · every 50 ms</i>"]
         U1 -->|packs bits| U2
     end
 
@@ -148,13 +175,11 @@ graph TB
         H1["entradas_plc1<br/>BP1 · BP2 · START · STOP · EMERGENCIA"]
     end
 
-    subgraph CODESYS["CODESYS 3.5.15.40"]
+    subgraph CODESYS["CODESYS V3.5 SP9 P1 · PLC_PRG · port 8888"]
         direction TB
-        C1["GVL — Global Variables"]
-        C2["Main PLC Program"]
-        C3["I/O Module 1 · salidas_plc1"]
-        C4["I/O Module 2 · salidas_plc2"]
-        C1 -->|TCP receive| C2
+        C2["PLC_PRG<br/>(SysSockSelect non-blocking)"]
+        C3["salidas_plc1<br/>ventosa solenoids · LED5–8"]
+        C4["salidas_plc2<br/>LED1–4 · NEUMATICA_ON/OFF"]
         C2 --> C3
         C2 --> C4
     end
@@ -164,18 +189,20 @@ graph TB
         H3["LED Panel · LED1–LED8"]
     end
 
-    subgraph FLUIDSIM["FluidSIM 4.2p Pneumatics"]
-        F1["OPC Variables<br/>NEUMATICA_ON / NEUMATICA_OFF"]
-        F2["Pneumatic Circuit Simulation"]
+    subgraph FLUIDSIM["FluidSIM 4.2p Pneumatics · OPC DA"]
+        F1["NEUMATICA_ON / NEUMATICA_OFF"]
+        F2["Pneumatic Circuit + STOP/EMERGENCIA feedback"]
         F1 --> F2
     end
 
-    U2 -->|TCP socket| C1
+    U2 -->|"TCP/IP · 127.0.0.1:8888"| C2
     H1 -->|byte input| C2
+    C2 -->|"5-byte status packet"| U3
     C3 --> H2
     C3 -->|LED5–8| H3
     C4 -->|LED1–4| H3
-    C4 -->|OPC · NEUMATICA_ON/OFF| F1
+    C4 -->|"OPC DA · NEUMATICA_ON/OFF"| F1
+    F2 -->|"STOP/EMERGENCIA → NEUMATICA_OFF → salidas_plc2 bit4"| U3
 
     style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
     style HW_IN fill:#4a4a4a,color:#fff,stroke:#4a4a4a
@@ -266,6 +293,263 @@ stateDiagram-v2
 | `TCP_COMANDOS_VENTOSAS` bit 0 | `VENTOSA_OMEGA_ON` → Module 1 bit 0 |
 | `TCP_COMANDOS_VENTOSAS` bit 1 | `VENTOSA_PALETIZADOR_ON` → Module 1 bit 2 |
 | `TCP_COMANDOS_LEDS` bits 0–7 | `LED1–LED8` → Modules 1 & 2 |
+
+---
+
+### CODESYS PLC Program (`PLC_PRG`)
+
+The complete working ST program. Uses `SysSockSelect` with zero timeout for non-blocking socket I/O so the PLC task cycle is never blocked by `SysSockRecv`.
+
+#### Variable Declarations (`VAR`)
+
+```pascal
+PROGRAM PLC_PRG
+VAR
+    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
+    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
+    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+
+    VENTOSA_OMEGA_ON : BOOL;
+    VENTOSA_OMEGA_OFF : BOOL;
+    VENTOSA_PALETIZADOR_ON : BOOL;
+    VENTOSA_PALETIZADOR_OFF : BOOL;
+
+    LED1, LED2, LED3, LED4 : BOOL;
+    LED5, LED6, LED7, LED8 : BOOL;
+
+    TON_LED : TON;
+    tSendTimer : TON;
+    tNoDataTimer : TON;
+
+    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+
+    serverSockAddr : SOCKADDRESS;
+    clientSockAddr : SOCKADDRESS;
+
+    addrLen : DINT;
+    serverPort : UINT := 8888;
+
+    xServerCreated : BOOL := FALSE;
+    xClientConnected : BOOL := FALSE;
+
+    rxBuffer : ARRAY[0..2] OF BYTE;
+    txBuffer : ARRAY[0..4] OF BYTE;
+
+    nBytesReceived : DINT;
+    nBytesSent : DINT;
+
+    TCP_COMANDOS_VENTOSAS : BYTE := 0;
+    TCP_COMANDOS_LEDS : BYTE := 0;
+
+    bPktReceived : BOOL := FALSE;
+
+    fdRead : SOCKET_FD_SET;
+    tvTimeout : SOCKET_TIMEVAL;
+    diSelectResult : DINT;
+    socketResult : DINT;
+END_VAR
+```
+
+#### Program Body
+
+```pascal
+(* ── Input decoding ─────────────────────────────────────────────────── *)
+BP1        := (entradas_plc1 AND 16#01) <> 0;
+BP2        := (entradas_plc1 AND 16#02) <> 0;
+START      := (entradas_plc1 AND 16#04) <> 0;
+STOP       := (entradas_plc1 AND 16#08) <> 0;
+EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
+
+(* ── System ON/OFF logic ─────────────────────────────────────────────── *)
+IF NOT STOP OR NOT EMERGENCIA THEN
+    SISTEMA_ON := FALSE;
+END_IF;
+
+IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
+    SISTEMA_ON := TRUE;
+    LED_TEST := TRUE;
+END_IF;
+
+START_ANT := START;
+
+TON_LED(IN := LED_TEST, PT := T#1S);
+IF TON_LED.Q THEN
+    LED_TEST := FALSE;
+END_IF;
+
+(* ── Pneumatics ──────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    NEUMATICA_ON := TRUE;
+    NEUMATICA_OFF := FALSE;
+ELSE
+    NEUMATICA_ON := FALSE;
+    NEUMATICA_OFF := TRUE;
+END_IF;
+
+(* ── Suction cups ────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
+    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
+ELSE
+    VENTOSA_OMEGA_ON       := FALSE;
+    VENTOSA_PALETIZADOR_ON := FALSE;
+END_IF;
+
+VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
+VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
+
+(* ── LEDs ────────────────────────────────────────────────────────────── *)
+IF LED_TEST THEN
+    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
+    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
+ELSE
+    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
+    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
+    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
+    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
+    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
+    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
+    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
+    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
+END_IF;
+
+(* ── Pack output bytes ───────────────────────────────────────────────── *)
+salidas_plc1 := 0;
+IF VENTOSA_OMEGA_ON       THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
+IF VENTOSA_OMEGA_OFF      THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
+IF VENTOSA_PALETIZADOR_ON THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
+IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
+IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
+IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
+IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
+IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
+
+salidas_plc2 := 0;
+IF LED2         THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
+IF LED1         THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
+IF LED4         THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
+IF LED3         THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
+IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
+IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
+
+(* ── TCP Server: create + bind + listen (once) ───────────────────────── *)
+IF NOT xServerCreated THEN
+    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
+
+    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
+        serverSockAddr.sin_family := SOCKET_AF_INET;
+        serverSockAddr.sin_port   := SysSockHtons(serverPort);
+        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
+
+        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
+            IF SysSockListen(hServer, 1) = 0 THEN
+                xServerCreated := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hServer);
+            hServer := RTS_INVALID_HANDLE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP Server: accept new client (non-blocking via SysSockSelect) ──── *)
+IF xServerCreated AND NOT xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hServer;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        addrLen := SIZEOF(clientSockAddr);
+        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
+
+        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
+            xClientConnected      := TRUE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+            bPktReceived          := FALSE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: receive Unity command packet (non-blocking) ────────────────── *)
+IF xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hClient;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
+
+        IF nBytesReceived > 0 THEN
+            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
+                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
+                TCP_COMANDOS_LEDS     := rxBuffer[2];
+                bPktReceived          := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hClient);
+            hClient           := RTS_INVALID_HANDLE;
+            xClientConnected  := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: send status packet to Unity every 50 ms ────────────────────── *)
+IF xClientConnected THEN
+    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
+
+    IF tSendTimer.Q THEN
+        txBuffer[0] := 16#BB;
+        txBuffer[1] := salidas_plc1;
+        txBuffer[2] := salidas_plc2;
+        txBuffer[3] := entradas_plc1;
+        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
+
+        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
+
+        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
+            SysSockClose(hClient);
+            hClient           := RTS_INVALID_HANDLE;
+            xClientConnected  := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── Watchdog: disconnect if no packet in 3 s ────────────────────────── *)
+tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
+
+IF tNoDataTimer.Q THEN
+    SysSockClose(hClient);
+    hClient           := RTS_INVALID_HANDLE;
+    xClientConnected  := FALSE;
+    TCP_COMANDOS_VENTOSAS := 0;
+    TCP_COMANDOS_LEDS     := 0;
+END_IF;
+
+bPktReceived := FALSE;
+```
+
+**Key implementation notes:**
+
+| Technique | Reason |
+|-----------|--------|
+| `SysSockSelect` with `tvTimeout = {0, 0}` | Non-blocking check — PLC cycle never stalls on recv |
+| Always send every 50 ms via `tSendTimer` | Unity heartbeat times out recv on its own thread within 50 ms |
+| `nBytesReceived <= 0` disconnect | Catches both graceful close (0) and RST/error (−1) |
+| `tNoDataTimer T#3S` watchdog | Drops client if Unity crashes without closing the socket |
+| All `SysSock*` calls use positional params | Named parameters not supported in CODESYS 3.5 SP9 P1 |
+| `hServer`/`hClient` initialized to `RTS_INVALID_HANDLE` | Prevents use of uninitialized handle on first cycle |
 
 ---
 
@@ -1063,8 +1347,8 @@ After the drone is deposited, `CerradorTapa` closes the lid and then destroys th
 | Panel | Source | Description |
 |-------|--------|-------------|
 | TCP status indicator | `CodesysTcpClient.isConnected` | Green = connected, orange = disconnected |
-| SISTEMA ON / OFF | `entradas_plc1 bit 2` (START latch) | System state from PLC |
-| NEUMATICA ON / OFF | `salidas_plc2 bit 5` | Pneumatics state from FluidSIM |
+| SISTEMA ON / OFF | `SISTEMA_ON` (5th byte of RX packet) | System state sent directly by CODESYS |
+| NEUMATICA ON / OFF | `salidas_plc2 bit 5` (NEUMATICA_ON) | Pneumatics state from FluidSIM via OPC |
 | Omega arm state | `Produccion.OmegaActivo` | ACTIVE / IDLE / MOVING |
 | Paletizador arm state | `Produccion.PaletActivo` | HOLDING / IDLE / MOVING |
 | LED panel (8 LEDs) | `salidas_plc1` + `salidas_plc2` | Box count 1–8 |
@@ -1073,11 +1357,11 @@ After the drone is deposited, `CerradorTapa` closes the lid and then destroys th
 
 **TCP protocol** (`CodesysTcpClient.cs`):
 ```
-TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]    -  3 bytes, 50 ms interval
-RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1]  -  4 bytes
+TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]                    -  3 bytes, every 50 ms
+RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]      -  5 bytes, every 50 ms
 ```
 
-The `CodesysTcpClient` runs dedicated send and receive background threads with automatic reconnect every `reconnectInterval` seconds (default 3 s).
+The `CodesysTcpClient` runs dedicated send and receive background threads with automatic reconnect every `reconnectInterval` seconds (default 3 s). A connection-generation counter prevents stale threads from interfering after reconnects. Unity pauses (`Time.timeScale = 0`) whenever `salidas_plc2 & 0x10` (NEUMATICA_OFF) is set, which CODESYS asserts on STOP or EMERGENCIA.
 
 ---
 
@@ -1111,6 +1395,93 @@ EMAIL_ADDRESS, EMAIL_PASSWORD, TO_EMAIL
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 WEBSOCKET_URL  (default: ws://192.168.1.3:81)
 ```
+
+---
+
+### 13. STOP / EMERGENCIA Pause (`Produccion.cs`)
+
+When FluidSIM sends a STOP or EMERGENCIA signal, CODESYS deasserts the pneumatic circuit (`NEUMATICA_OFF` → `salidas_plc2 bit 4`). Unity detects this and **freezes the entire simulation** as if the user pressed Pause.
+
+**Implementation in `Produccion.cs`**:
+
+```csharp
+// Pause condition: connected + NEUMATICA_OFF bit set
+public bool SistemaPausado =>
+    tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+
+void Update()
+{
+    Time.timeScale = SistemaPausado ? 0f : 1f;  // Freeze/resume everything
+    if (!simulacionActiva) return;
+    tiempoTotalSimulacion += Time.deltaTime;     // Only counts while running
+}
+
+// All WaitUntil calls wrapped to also check for pause
+IEnumerator Esperar(Func<bool> condicion)
+{
+    yield return new WaitUntil(() => !SistemaPausado && condicion());
+}
+```
+
+**Behavior**:
+
+| Condition | Effect |
+|-----------|--------|
+| `STOP` or `EMERGENCIA` = LOW in FluidSIM | `Time.timeScale = 0` — arms freeze, coroutines suspend |
+| Signal restored | `Time.timeScale = 1` — simulation resumes from where it stopped |
+| TCP disconnected | `SistemaPausado` returns `false` — simulation continues unpaused |
+
+`Time.timeScale = 0` freezes all Unity physics and `WaitForSeconds` timers but does **not** affect background TCP threads, which continue running at OS level.
+
+---
+
+### 14. Statistical Analysis & OEE Report (`Html/Analisis estadistico y OEE FINAL.html`)
+
+A self-contained interactive HTML report generated from a 100-cycle production run (2026-04-28, 60.37 min total). Built with **Chart.js 4.4.1** and **Barlow/Fira Code** typefaces; no server required — open directly in any browser.
+
+#### Key Metrics
+
+| Indicator | Value | Note |
+|-----------|-------|------|
+| **Cycles analyzed** | 100 | Full drone assembly cycles |
+| **Mean cycle time (μ)** | 32.00 s | Arithmetic mean |
+| **Std deviation (σ)** | 0.298 s | Population std dev |
+| **CV (Coeff. of variation)** | **0.93%** | < 5% → process under statistical control |
+| **Min / Max** | 31.44 s / 32.87 s | Drone #39 / Drone #1 |
+| **UCL (3σ)** | 32.894 s | Max observed just 0.024 s below |
+| **Points outside control limits** | 0 / 100 | Process fully stable |
+
+#### OEE — Overall Equipment Effectiveness
+
+| Factor | Value | Formula |
+|--------|-------|---------|
+| **Availability** | 88.18% | Active time / Planned time (428 s non-productive) |
+| **Performance** | 98.43% | Ideal cycle (31.44 s) / Real cycle (32.00 s) |
+| **Quality** | 100.00% | 100 good drones / 100 produced, 0 rejects |
+| **OEE** | **86.80%** | Disp × Perf × Qual — **World-Class (≥ 85%)** |
+
+#### Per-Arm Statistical Summary
+
+| Arm | Mean (s) | σ (s) | CV (%) | Role |
+|-----|----------|-------|--------|------|
+| **Alpha** | 25.27 | 0.230 | 0.91 | Gripper — Base, Motors, Hélices |
+| **Beta** | 22.91 | 0.274 | 1.20 | Gripper — Motors, Hélices |
+| **Omega** | 29.50 | 0.264 | 0.89 | Suction — PCB, Tapa, transfer |
+| **Paletizador** | 5.37 | 0.618 | **11.5** | Suction — bimodal: ~4.6 s / ~6.0 s |
+
+#### Report Sections
+
+| # | Section | Content |
+|---|---------|---------|
+| 01 | Descriptive statistics | μ, σ, CV, IQR, skewness, kurtosis, IC 95%, histogram, box-plot, time series |
+| 02 | Per-arm statistics | Full table + medias/σ/CV bar charts + multi-arm box-plots |
+| 03 | Percentiles & CDF | P5–P99 per cycle; cumulative distribution function |
+| 04 | Correlation & trend | Linear regression (R²=0.018, no drift), ACF, cross-arm Pearson matrix |
+| 05 | Process capability | SPC control chart (0 out-of-control), bimodality analysis (Paletizador) |
+| 06 | Consolidated summary | Full statistics table — all variables |
+| 07 | OEE analysis | Gauge, factor cascade, rolling OEE W1–W10, loss breakdown, industry benchmark |
+
+> ⚠ **Simulation context**: the OEE of 86.80% reflects ideal simulation conditions (no mechanical failures, deterministic cycle times). Real production OEE is typically 65–80%. Availability is the primary improvement lever — reducing the 428 s non-productive gap would directly raise OEE above 90%.
 
 ---
 
@@ -1161,6 +1532,8 @@ drone-packaging-simulation-unity/
 │   │   └── SafetyStripesMat.mat
 │   └── Scenes/
 │       └── SampleScene.unity
+├── Html/
+│   └── Analisis estadistico y OEE FINAL.html  # Interactive statistical report — 100-cycle run, OEE 86.80%
 ├── ESP32 CAM WEBSOCKET/
 │   └── ESP32CAM/
 │       └── Auxiliar System.py       # Hand-detection safety system (MediaPipe + WebSocket)
@@ -1382,6 +1755,8 @@ while (t < 1f) {
 | 3 | Sequence race condition | 🟡 High | ✅ Resolved | Semaphore flag |
 | 4 | Propeller rotation | 🟡 High | ✅ Resolved | Absolute rotation by number |
 | 5 | Movement stuttering | 🟢 Medium | ✅ Resolved | Correct t accumulation |
+| 6 | TCP reconnect fails after first disconnect | 🔴 Critical | ✅ Resolved | Connection-generation counter in `CodesysTcpClient` |
+| 7 | CODESYS blocks on `SysSockRecv` — no new connections | 🔴 Critical | ✅ Resolved | `SysSockSelect` non-blocking check before each recv |
 
 ---
 
@@ -1477,6 +1852,12 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 ![Vista general de la simulación](docs/simulation_overview.png)
 > *Vista isométrica de la celda robótica de ensamblaje  -  4 brazos articulados (Alpha, Beta, Omega, Paletizador) con ruedas mecanum.*
 
+<br/>
+
+[![Video Demo](https://img.shields.io/badge/▶_Video_Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
+
+> *Corrida completa de la simulación — ensamblaje, paletizado y swap de carros con integración CODESYS & FluidSIM.*
+
 </div>
 
 ---
@@ -1486,8 +1867,28 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Descripción General](#descripción-general)
 - [Stack Técnico](#stack-técnico)
 - [Integración CODESYS & FluidSIM](#integración-codesys--fluidsim)
+  - [Versiones de Herramientas](#versiones-de-herramientas)
+  - [Arquitectura de Comunicación](#arquitectura-de-comunicación)
+  - [Mapa de Variables](#mapa-de-variables)
+  - [Lógica de Seguridad y Control](#lógica-de-seguridad-y-control)
+  - [Programa PLC CODESYS](#programa-plc-codesys-plc_prg)
+  - [Simulación Neumática FluidSIM](#simulación-neumática-fluidsim)
 - [Arquitectura del Sistema](#arquitectura-del-sistema)
 - [Sistemas Implementados](#sistemas-implementados)
+  - [1. Sistema Gripper](#1-sistema-gripper-brazoscs)
+  - [2. Sistema Ventosa](#2-sistema-de-ventosa-ventosacs)
+  - [3. Secuenciador de Movimiento JSON](#3-secuenciador-de-movimiento-json)
+  - [4. Arquitectura de Movimiento Descentralizado](#4-arquitectura-de-movimiento-descentralizado)
+  - [5. Unificación de Dron](#5-unificación-de-dron-dronlistocs)
+  - [6. Navegación del Paletizador](#6-navegación-del-paletizador-carropaletizadords)
+  - [7. Mecánicas de Snap](#7-mecánicas-de-snap)
+  - [8. Prevención de Race Condition](#8-prevención-de-race-condition)
+  - [9. Spawner de Producción](#9-spawner-de-producción-produccioncs)
+  - [10. Cierre de Tapa y Retiro de Carro](#10-cierre-de-tapa-y-retiro-de-carro)
+  - [11. HMI Dashboard](#11-hmi-dashboard-hmimanagercs--codesystcpclientcs-1)
+  - [12. Sistema de Visión de Seguridad](#12-sistema-de-visión-de-seguridad)
+  - [13. Pausa por STOP / EMERGENCIA](#13-pausa-por-stop--emergencia-produccioncs)
+  - [14. Informe Estadístico y OEE](#14-informe-de-análisis-estadístico-y-oee-htmlanalisis-estadistico-y-oee-finalhtml)
 - [Estructura del Proyecto](#estructura-del-proyecto)
 - [Instalación](#instalación)
 - [Problemas Resueltos](#problemas-resueltos)
@@ -1569,7 +1970,7 @@ Physics.IgnoreCollision // Control dinámico de colisiones
 
 | Herramienta | Versión | Fabricante |
 |-------------|---------|-----------|
-| **CODESYS** | 3.5.15.40 | 3S-Smart Software Solutions GmbH |
+| **CODESYS** | 3.5.15.40 (V3.5 SP9 P1) | 3S-Smart Software Solutions GmbH |
 | **FluidSIM** | 4.2p / 1.67 Neumática (19.02.2010) | Festo Didactic GmbH & Co. KG |
 
 #### Librerías CODESYS Requeridas
@@ -1598,9 +1999,10 @@ Las tres capas se comunican mediante dos protocolos: **TCP/IP** (Unity ↔ CODES
 
 ```mermaid
 graph TB
-    subgraph UNITY["Unity"]
+    subgraph UNITY["Unity · CodesysTcpClient.cs"]
         U1["Ventosa.cs · CarroPaletizador.cs"]
-        U2["TCP_COMANDOS_VENTOSAS<br/>TCP_COMANDOS_LEDS<br/><i>1 byte cada una</i>"]
+        U2["TX → CODESYS<br/>[0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]<br/><i>3 bytes · cada 50 ms</i>"]
+        U3["RX ← CODESYS<br/>[0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]<br/><i>5 bytes · cada 50 ms</i>"]
         U1 -->|empaqueta bits| U2
     end
 
@@ -1608,13 +2010,11 @@ graph TB
         H1["entradas_plc1<br/>BP1 · BP2 · START · STOP · EMERGENCIA"]
     end
 
-    subgraph CODESYS["CODESYS 3.5.15.40"]
+    subgraph CODESYS["CODESYS V3.5 SP9 P1 · PLC_PRG · puerto 8888"]
         direction TB
-        C1["GVL — Variables Globales"]
-        C2["Programa PLC Principal"]
-        C3["Módulo I/O 1 · salidas_plc1"]
-        C4["Módulo I/O 2 · salidas_plc2"]
-        C1 -->|recepción TCP| C2
+        C2["PLC_PRG<br/>(SysSockSelect no bloqueante)"]
+        C3["salidas_plc1<br/>solenoides ventosa · LED5–8"]
+        C4["salidas_plc2<br/>LED1–4 · NEUMATICA_ON/OFF"]
         C2 --> C3
         C2 --> C4
     end
@@ -1624,18 +2024,20 @@ graph TB
         H3["Panel LED · LED1–LED8"]
     end
 
-    subgraph FLUIDSIM["FluidSIM 4.2p Neumática"]
-        F1["Variables OPC<br/>NEUMATICA_ON / NEUMATICA_OFF"]
-        F2["Simulación Circuito Neumático"]
+    subgraph FLUIDSIM["FluidSIM 4.2p Neumática · OPC DA"]
+        F1["NEUMATICA_ON / NEUMATICA_OFF"]
+        F2["Circuito Neumático + retroalimentación STOP/EMERGENCIA"]
         F1 --> F2
     end
 
-    U2 -->|socket TCP/IP| C1
+    U2 -->|"TCP/IP · 127.0.0.1:8888"| C2
     H1 -->|byte entrada| C2
+    C2 -->|"paquete de estado 5 bytes"| U3
     C3 --> H2
     C3 -->|LED5–8| H3
     C4 -->|LED1–4| H3
-    C4 -->|OPC · NEUMATICA_ON/OFF| F1
+    C4 -->|"OPC DA · NEUMATICA_ON/OFF"| F1
+    F2 -->|"STOP/EMERGENCIA → NEUMATICA_OFF → salidas_plc2 bit4"| U3
 
     style UNITY fill:#1a3a5c,color:#fff,stroke:#1a3a5c
     style HW_IN fill:#4a4a4a,color:#fff,stroke:#4a4a4a
@@ -1726,6 +2128,263 @@ stateDiagram-v2
 | Bit 0 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_OMEGA_ON` → Módulo 1 bit 0 |
 | Bit 1 de `TCP_COMANDOS_VENTOSAS` | `VENTOSA_PALETIZADOR_ON` → Módulo 1 bit 2 |
 | Bits 0–7 de `TCP_COMANDOS_LEDS` | `LED1–LED8` → Módulos 1 y 2 |
+
+---
+
+### Programa PLC CODESYS (`PLC_PRG`)
+
+Programa ST completo y funcional. Usa `SysSockSelect` con timeout cero para I/O de socket no bloqueante, de modo que el ciclo de tarea PLC nunca se bloquea en `SysSockRecv`.
+
+#### Declaración de Variables (`VAR`)
+
+```pascal
+PROGRAM PLC_PRG
+VAR
+    BP1, BP2, START, STOP, EMERGENCIA : BOOL;
+    SISTEMA_ON, START_ANT, LED_TEST : BOOL;
+    NEUMATICA_ON, NEUMATICA_OFF : BOOL;
+
+    VENTOSA_OMEGA_ON : BOOL;
+    VENTOSA_OMEGA_OFF : BOOL;
+    VENTOSA_PALETIZADOR_ON : BOOL;
+    VENTOSA_PALETIZADOR_OFF : BOOL;
+
+    LED1, LED2, LED3, LED4 : BOOL;
+    LED5, LED6, LED7, LED8 : BOOL;
+
+    TON_LED : TON;
+    tSendTimer : TON;
+    tNoDataTimer : TON;
+
+    hServer : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+    hClient : RTS_IEC_HANDLE := RTS_INVALID_HANDLE;
+
+    serverSockAddr : SOCKADDRESS;
+    clientSockAddr : SOCKADDRESS;
+
+    addrLen : DINT;
+    serverPort : UINT := 8888;
+
+    xServerCreated : BOOL := FALSE;
+    xClientConnected : BOOL := FALSE;
+
+    rxBuffer : ARRAY[0..2] OF BYTE;
+    txBuffer : ARRAY[0..4] OF BYTE;
+
+    nBytesReceived : DINT;
+    nBytesSent : DINT;
+
+    TCP_COMANDOS_VENTOSAS : BYTE := 0;
+    TCP_COMANDOS_LEDS : BYTE := 0;
+
+    bPktReceived : BOOL := FALSE;
+
+    fdRead : SOCKET_FD_SET;
+    tvTimeout : SOCKET_TIMEVAL;
+    diSelectResult : DINT;
+    socketResult : DINT;
+END_VAR
+```
+
+#### Cuerpo del Programa
+
+```pascal
+(* ── Decodificación de entradas ──────────────────────────────────────── *)
+BP1        := (entradas_plc1 AND 16#01) <> 0;
+BP2        := (entradas_plc1 AND 16#02) <> 0;
+START      := (entradas_plc1 AND 16#04) <> 0;
+STOP       := (entradas_plc1 AND 16#08) <> 0;
+EMERGENCIA := (entradas_plc1 AND 16#10) <> 0;
+
+(* ── Lógica SISTEMA_ON / OFF ──────────────────────────────────────────── *)
+IF NOT STOP OR NOT EMERGENCIA THEN
+    SISTEMA_ON := FALSE;
+END_IF;
+
+IF START AND NOT START_ANT AND STOP AND EMERGENCIA THEN
+    SISTEMA_ON := TRUE;
+    LED_TEST := TRUE;
+END_IF;
+
+START_ANT := START;
+
+TON_LED(IN := LED_TEST, PT := T#1S);
+IF TON_LED.Q THEN
+    LED_TEST := FALSE;
+END_IF;
+
+(* ── Neumática ───────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    NEUMATICA_ON := TRUE;
+    NEUMATICA_OFF := FALSE;
+ELSE
+    NEUMATICA_ON := FALSE;
+    NEUMATICA_OFF := TRUE;
+END_IF;
+
+(* ── Ventosas ────────────────────────────────────────────────────────── *)
+IF SISTEMA_ON AND STOP AND EMERGENCIA THEN
+    VENTOSA_OMEGA_ON       := (TCP_COMANDOS_VENTOSAS AND 16#01) <> 0;
+    VENTOSA_PALETIZADOR_ON := (TCP_COMANDOS_VENTOSAS AND 16#02) <> 0;
+ELSE
+    VENTOSA_OMEGA_ON       := FALSE;
+    VENTOSA_PALETIZADOR_ON := FALSE;
+END_IF;
+
+VENTOSA_OMEGA_OFF       := NOT VENTOSA_OMEGA_ON;
+VENTOSA_PALETIZADOR_OFF := NOT VENTOSA_PALETIZADOR_ON;
+
+(* ── LEDs ────────────────────────────────────────────────────────────── *)
+IF LED_TEST THEN
+    LED1 := TRUE;  LED2 := TRUE;  LED3 := TRUE;  LED4 := TRUE;
+    LED5 := TRUE;  LED6 := TRUE;  LED7 := TRUE;  LED8 := TRUE;
+ELSE
+    LED1 := (TCP_COMANDOS_LEDS AND 16#01) <> 0;
+    LED2 := (TCP_COMANDOS_LEDS AND 16#02) <> 0;
+    LED3 := (TCP_COMANDOS_LEDS AND 16#04) <> 0;
+    LED4 := (TCP_COMANDOS_LEDS AND 16#08) <> 0;
+    LED5 := (TCP_COMANDOS_LEDS AND 16#10) <> 0;
+    LED6 := (TCP_COMANDOS_LEDS AND 16#20) <> 0;
+    LED7 := (TCP_COMANDOS_LEDS AND 16#40) <> 0;
+    LED8 := (TCP_COMANDOS_LEDS AND 16#80) <> 0;
+END_IF;
+
+(* ── Empaquetar bytes de salida ──────────────────────────────────────── *)
+salidas_plc1 := 0;
+IF VENTOSA_OMEGA_ON        THEN salidas_plc1 := salidas_plc1 OR 16#01; END_IF;
+IF VENTOSA_OMEGA_OFF       THEN salidas_plc1 := salidas_plc1 OR 16#02; END_IF;
+IF VENTOSA_PALETIZADOR_ON  THEN salidas_plc1 := salidas_plc1 OR 16#04; END_IF;
+IF VENTOSA_PALETIZADOR_OFF THEN salidas_plc1 := salidas_plc1 OR 16#08; END_IF;
+IF LED7 THEN salidas_plc1 := salidas_plc1 OR 16#10; END_IF;
+IF LED8 THEN salidas_plc1 := salidas_plc1 OR 16#20; END_IF;
+IF LED5 THEN salidas_plc1 := salidas_plc1 OR 16#40; END_IF;
+IF LED6 THEN salidas_plc1 := salidas_plc1 OR 16#80; END_IF;
+
+salidas_plc2 := 0;
+IF LED2          THEN salidas_plc2 := salidas_plc2 OR 16#01; END_IF;
+IF LED1          THEN salidas_plc2 := salidas_plc2 OR 16#02; END_IF;
+IF LED4          THEN salidas_plc2 := salidas_plc2 OR 16#04; END_IF;
+IF LED3          THEN salidas_plc2 := salidas_plc2 OR 16#08; END_IF;
+IF NEUMATICA_OFF THEN salidas_plc2 := salidas_plc2 OR 16#10; END_IF;
+IF NEUMATICA_ON  THEN salidas_plc2 := salidas_plc2 OR 16#20; END_IF;
+
+(* ── TCP Server: crear + bind + listen (una sola vez) ───────────────── *)
+IF NOT xServerCreated THEN
+    hServer := SysSockCreate(SOCKET_AF_INET, SOCKET_STREAM, SOCKET_IPPROTO_TCP, ADR(socketResult));
+
+    IF hServer <> 0 AND hServer <> RTS_INVALID_HANDLE THEN
+        serverSockAddr.sin_family := SOCKET_AF_INET;
+        serverSockAddr.sin_port   := SysSockHtons(serverPort);
+        SysSockInetAddr('127.0.0.1', ADR(serverSockAddr.sin_addr));
+
+        IF SysSockBind(hServer, ADR(serverSockAddr), SIZEOF(serverSockAddr)) = 0 THEN
+            IF SysSockListen(hServer, 1) = 0 THEN
+                xServerCreated := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hServer);
+            hServer := RTS_INVALID_HANDLE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP Server: aceptar cliente (no bloqueante con SysSockSelect) ───── *)
+IF xServerCreated AND NOT xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hServer;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        addrLen := SIZEOF(clientSockAddr);
+        hClient := SysSockAccept(hServer, ADR(clientSockAddr), ADR(addrLen), 0);
+
+        IF hClient <> 0 AND hClient <> RTS_INVALID_HANDLE THEN
+            xClientConnected      := TRUE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+            bPktReceived          := FALSE;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: recibir paquete de comando de Unity (no bloqueante) ────────── *)
+IF xClientConnected THEN
+    fdRead.fd_count    := 1;
+    fdRead.fd_array[0] := hClient;
+    tvTimeout.tv_sec   := 0;
+    tvTimeout.tv_usec  := 0;
+
+    diSelectResult := TO_DINT(SysSockSelect(0, ADR(fdRead), 0, 0, ADR(tvTimeout), 0));
+
+    IF diSelectResult > 0 THEN
+        nBytesReceived := SysSockRecv(hClient, ADR(rxBuffer), SIZEOF(rxBuffer), 0, 0);
+
+        IF nBytesReceived > 0 THEN
+            IF nBytesReceived = 3 AND rxBuffer[0] = 16#AA THEN
+                TCP_COMANDOS_VENTOSAS := rxBuffer[1];
+                TCP_COMANDOS_LEDS     := rxBuffer[2];
+                bPktReceived          := TRUE;
+            END_IF;
+        ELSE
+            SysSockClose(hClient);
+            hClient               := RTS_INVALID_HANDLE;
+            xClientConnected      := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── TCP: enviar paquete de estado a Unity cada 50 ms ───────────────── *)
+IF xClientConnected THEN
+    tSendTimer(IN := NOT tSendTimer.Q, PT := T#50MS);
+
+    IF tSendTimer.Q THEN
+        txBuffer[0] := 16#BB;
+        txBuffer[1] := salidas_plc1;
+        txBuffer[2] := salidas_plc2;
+        txBuffer[3] := entradas_plc1;
+        txBuffer[4] := BOOL_TO_BYTE(SISTEMA_ON);
+
+        nBytesSent := SysSockSend(hClient, ADR(txBuffer), SIZEOF(txBuffer), 0, 0);
+
+        IF nBytesSent <= 0 AND nBytesSent <> -1 THEN
+            SysSockClose(hClient);
+            hClient               := RTS_INVALID_HANDLE;
+            xClientConnected      := FALSE;
+            TCP_COMANDOS_VENTOSAS := 0;
+            TCP_COMANDOS_LEDS     := 0;
+        END_IF;
+    END_IF;
+END_IF;
+
+(* ── Watchdog: desconectar si no hay paquete en 3 s ─────────────────── *)
+tNoDataTimer(IN := xClientConnected AND NOT bPktReceived, PT := T#3S);
+
+IF tNoDataTimer.Q THEN
+    SysSockClose(hClient);
+    hClient               := RTS_INVALID_HANDLE;
+    xClientConnected      := FALSE;
+    TCP_COMANDOS_VENTOSAS := 0;
+    TCP_COMANDOS_LEDS     := 0;
+END_IF;
+
+bPktReceived := FALSE;
+```
+
+**Notas de implementación:**
+
+| Técnica | Motivo |
+|---------|--------|
+| `SysSockSelect` con `tvTimeout = {0, 0}` | No bloqueante — el ciclo PLC nunca se congela en recv |
+| Envío cada 50 ms con `tSendTimer` | El recv de Unity en su hilo propio retorna en ≤50 ms |
+| `nBytesReceived <= 0` para desconexión | Captura cierre gracioso (0) y RST/error (−1) |
+| Watchdog `tNoDataTimer T#3S` | Libera cliente si Unity se cierra sin cerrar el socket |
+| Parámetros posicionales en `SysSock*` | Los parámetros nombrados no existen en CODESYS 3.5 SP9 P1 |
+| `hServer`/`hClient` := `RTS_INVALID_HANDLE` | Evita usar un handle no inicializado en el primer ciclo |
 
 ---
 
@@ -2523,8 +3182,8 @@ Tras depositar el dron, `CerradorTapa` cierra la tapa y luego destruye el GameOb
 | Panel | Fuente | Descripción |
 |-------|--------|-------------|
 | Indicador TCP | `CodesysTcpClient.isConnected` | Verde = conectado, naranja = desconectado |
-| SISTEMA ON / OFF | `entradas_plc1 bit 2` (START enclavado) | Estado del sistema desde el PLC |
-| NEUMÁTICA ON / OFF | `salidas_plc2 bit 5` | Estado neumática desde FluidSIM |
+| SISTEMA ON / OFF | `SISTEMA_ON` (5.º byte del paquete RX) | Estado del sistema enviado directamente por CODESYS |
+| NEUMÁTICA ON / OFF | `salidas_plc2 bit 5` (NEUMATICA_ON) | Estado neumática desde FluidSIM vía OPC |
 | Estado brazo Omega | `Produccion.OmegaActivo` | ACTIVO / IDLE / MOVING |
 | Estado Paletizador | `Produccion.PaletActivo` | HOLDING / IDLE / MOVING |
 | Panel LED (8 LEDs) | `salidas_plc1` + `salidas_plc2` | Conteo de cajas 1–8 |
@@ -2533,9 +3192,11 @@ Tras depositar el dron, `CerradorTapa` cierra la tapa y luego destruye el GameOb
 
 **Protocolo TCP** (`CodesysTcpClient.cs`):
 ```
-TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]    -  3 bytes, intervalo 50 ms
-RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1]  -  4 bytes
+TX → CODESYS  [0xAA, TCP_COMANDOS_VENTOSAS, TCP_COMANDOS_LEDS]                    -  3 bytes, cada 50 ms
+RX ← CODESYS  [0xBB, salidas_plc1, salidas_plc2, entradas_plc1, SISTEMA_ON]      -  5 bytes, cada 50 ms
 ```
+
+El `CodesysTcpClient` ejecuta hilos dedicados de envío y recepción con reconexión automática cada `reconnectInterval` segundos (default 3 s). Un contador de generación de conexión evita que hilos obsoletos interfieran tras reconexiones. Unity pausa (`Time.timeScale = 0`) cuando `salidas_plc2 & 0x10` (NEUMATICA_OFF) está activo, lo cual CODESYS aserta ante STOP o EMERGENCIA.
 
 El `CodesysTcpClient` ejecuta hilos dedicados de envío y recepción en segundo plano con reconexión automática cada `reconnectInterval` segundos (por defecto 3 s).
 
@@ -2571,6 +3232,93 @@ EMAIL_ADDRESS, EMAIL_PASSWORD, TO_EMAIL
 TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 WEBSOCKET_URL  (por defecto: ws://192.168.1.3:81)
 ```
+
+---
+
+### 13. Pausa por STOP / EMERGENCIA (`Produccion.cs`)
+
+Cuando FluidSIM envía señal de STOP o EMERGENCIA, CODESYS desactiva el circuito neumático (`NEUMATICA_OFF` → `salidas_plc2 bit 4`). Unity lo detecta y **congela toda la simulación** como si el usuario presionara Pause.
+
+**Implementación en `Produccion.cs`**:
+
+```csharp
+// Condición de pausa: conectado + bit NEUMATICA_OFF activo
+public bool SistemaPausado =>
+    tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+
+void Update()
+{
+    Time.timeScale = SistemaPausado ? 0f : 1f;  // Congela / reanuda todo
+    if (!simulacionActiva) return;
+    tiempoTotalSimulacion += Time.deltaTime;     // Solo cuenta mientras corre
+}
+
+// Todas las esperas también verifican la pausa
+IEnumerator Esperar(Func<bool> condicion)
+{
+    yield return new WaitUntil(() => !SistemaPausado && condicion());
+}
+```
+
+**Comportamiento:**
+
+| Condición | Efecto |
+|-----------|--------|
+| `STOP` o `EMERGENCIA` = LOW en FluidSIM | `Time.timeScale = 0` — brazos congelados, coroutines suspendidas |
+| Señal restaurada | `Time.timeScale = 1` — la simulación continúa desde donde se detuvo |
+| TCP desconectado | `SistemaPausado` devuelve `false` — simulación sigue sin pausar |
+
+`Time.timeScale = 0` congela toda la física de Unity y los temporizadores `WaitForSeconds`, pero **no afecta** los hilos TCP en segundo plano, que siguen corriendo a nivel de SO.
+
+---
+
+### 14. Informe de Análisis Estadístico y OEE (`Html/Analisis estadistico y OEE FINAL.html`)
+
+Informe HTML interactivo autónomo generado a partir de una corrida de 100 ciclos de producción (2026-04-28, 60.37 min totales). Construido con **Chart.js 4.4.1** y tipografías **Barlow/Fira Code**; no requiere servidor — se abre directamente en cualquier navegador.
+
+#### Métricas Clave
+
+| Indicador | Valor | Nota |
+|-----------|-------|------|
+| **Ciclos analizados** | 100 | Ciclos completos de ensamblaje |
+| **Tiempo de ciclo medio (μ)** | 32.00 s | Media aritmética |
+| **Desviación típica (σ)** | 0.298 s | Desv. poblacional |
+| **CV (Coef. de variación)** | **0.93%** | < 5% → proceso bajo control estadístico |
+| **Mín / Máx** | 31.44 s / 32.87 s | Dron #39 / Dron #1 |
+| **UCL (3σ)** | 32.894 s | El máximo real quedó a solo 0.024 s del límite |
+| **Puntos fuera de control** | 0 / 100 | Proceso completamente estable |
+
+#### OEE — Eficiencia Global del Equipo
+
+| Factor | Valor | Fórmula |
+|--------|-------|---------|
+| **Disponibilidad** | 88.18% | Tiempo activo / Tiempo planificado (428 s no productivos) |
+| **Rendimiento** | 98.43% | Ciclo ideal (31.44 s) / Ciclo real (32.00 s) |
+| **Calidad** | 100.00% | 100 drones buenos / 100 producidos, 0 rechazos |
+| **OEE** | **86.80%** | Disp × Rend × Cal — **Clase Mundial (≥ 85%)** |
+
+#### Resumen Estadístico por Brazo
+
+| Brazo | Media (s) | σ (s) | CV (%) | Rol |
+|-------|-----------|-------|--------|-----|
+| **Alpha** | 25.27 | 0.230 | 0.91 | Pinza — Base, Motores, Hélices |
+| **Beta** | 22.91 | 0.274 | 1.20 | Pinza — Motores, Hélices |
+| **Omega** | 29.50 | 0.264 | 0.89 | Ventosa — PCB, Tapa, transferencia |
+| **Paletizador** | 5.37 | 0.618 | **11.5** | Ventosa — bimodal: ~4.6 s / ~6.0 s |
+
+#### Secciones del Informe
+
+| # | Sección | Contenido |
+|---|---------|-----------|
+| 01 | Estadística descriptiva | μ, σ, CV, IQR, asimetría, curtosis, IC 95%, histograma, box-plot, serie temporal |
+| 02 | Estadística por brazo | Tabla completa + gráficas de medias/σ/CV + box-plots superpuestos |
+| 03 | Percentiles y FDA | P5–P99 por ciclo; función de distribución acumulada |
+| 04 | Correlación y tendencia | Regresión lineal (R²=0.018, sin drift), ACF, matriz Pearson entre brazos |
+| 05 | Capacidad del proceso | Carta de control SPC (0 fuera de control), análisis de bimodalidad (Paletizador) |
+| 06 | Resumen consolidado | Tabla completa de estadísticos — todas las variables |
+| 07 | Análisis OEE | Gauge, cascada de factores, OEE rolling W1–W10, análisis de pérdidas, benchmark industrial |
+
+> ⚠ **Contexto de simulación**: el OEE de 86.80% refleja condiciones ideales de simulación (sin fallos mecánicos, tiempos de ciclo deterministas). En producción real se espera un OEE entre 65–80%. La Disponibilidad es la principal palanca de mejora — reducir los 428 s no productivos llevaría el OEE por encima del 90%.
 
 ---
 
@@ -2621,6 +3369,8 @@ drone-packaging-simulation-unity/
 │   │   └── SafetyStripesMat.mat
 │   └── Scenes/
 │       └── SampleScene.unity
+├── Html/
+│   └── Analisis estadistico y OEE FINAL.html  # Informe estadístico interactivo — 100 ciclos, OEE 86.80%
 ├── ESP32 CAM WEBSOCKET/
 │   └── ESP32CAM/
 │       └── Auxiliar System.py       # Sistema de seguridad con visión (MediaPipe + WebSocket)
@@ -2842,6 +3592,8 @@ while (t < 1f) {
 | 3 | Race condition secuencias | 🟡 Alto | ✅ Resuelto | Flag semáforo |
 | 4 | Rotación hélices | 🟡 Alto | ✅ Resuelto | Rotación absoluta por número |
 | 5 | Stuttering movimiento | 🟢 Medio | ✅ Resuelto | Acumulación correcta de t |
+| 6 | Reconexión TCP falla tras primera desconexión | 🔴 Crítico | ✅ Resuelto | Contador de generación de conexión en `CodesysTcpClient` |
+| 7 | CODESYS bloquea en `SysSockRecv` — no acepta nuevas conexiones | 🔴 Crítico | ✅ Resuelto | `SysSockSelect` no bloqueante antes de cada recv |
 
 ---
 
