@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -27,8 +28,14 @@ public class Produccion : MonoBehaviour
     [HideInInspector] public int carroActual = 0;
     [HideInInspector] public int cajasEnCarroActual = 0;
     [HideInInspector] public float tiempoInicioDronActual;
+    [HideInInspector] public float tiempoTotalSimulacion = 0f;
+    [HideInInspector] public bool simulacionActiva = false;
+    [HideInInspector] public string ultimoLogTiempo = "";
+
     private const int CAJAS_POR_CARRO = 4;
     private GameObject baseActual;
+
+    public event Action<string> OnLogTiempo;
 
     private Vector3[] posicionesOriginalesCarros;
     private Quaternion[] rotacionesOriginalesCarros;
@@ -41,10 +48,15 @@ public class Produccion : MonoBehaviour
 
     [Header("Carros de paleta (en orden de aparición)")]
     public GameObject[] carros;
-
     public GameObject carroPrefab;
 
-    // Propiedades para HMI (solo lectura)
+    [Header("TCP")]
+    public CodesysTcpClient tcp;
+
+    [Header("Logger de producción")]
+    public LogProduccion logger;
+
+    // Propiedades para HMI
     public bool OmegaActivo => brazoOmega != null && brazoOmega.TieneObjeto;
     public bool PaletActivo => brazoPaletizador != null && brazoPaletizador.TieneObjeto;
     public string OmegaAccion => brazoOmega != null && brazoOmega.TieneObjeto ? "HOLDING" :
@@ -65,7 +77,6 @@ public class Produccion : MonoBehaviour
             carros[i].SetActive(i < 2);
         }
 
-        // Configurar RetiradorCarro de los dos carros iniciales
         RetiradorCarro r0 = carros[0].GetComponent<RetiradorCarro>();
         if (r0 != null)
         {
@@ -82,7 +93,6 @@ public class Produccion : MonoBehaviour
             r1.cajasAdoptadas = false;
         }
 
-        // Spawnear las 8 cajas iniciales
         for (int i = 0; i < spawnsCaja.Length; i++)
         {
             GameObject caja = spawnsCaja[i].Spawn();
@@ -99,11 +109,19 @@ public class Produccion : MonoBehaviour
         StartCoroutine(LoopProduccion());
     }
 
+    void Update()
+    {
+        if (!simulacionActiva) return;
+        tiempoTotalSimulacion += Time.deltaTime;
+    }
+
     IEnumerator LoopProduccion()
     {
+        simulacionActiva = true;
+        tiempoTotalSimulacion = 0f;
+
         while (droneActual < dronesAProducir)
         {
-            // Reiniciar estado interno del ciclo de 8
             cajasEnCarroActual = 0;
             brazoAlpha.ResetCompleto();
             brazoBeta.ResetCompleto();
@@ -113,10 +131,8 @@ public class Produccion : MonoBehaviour
 
             yield return null;
 
-            // ── INICIA cronómetro del primer dron (justo cuando arrancan los brazos) ──
             tiempoInicioDronActual = Time.time;
 
-            // Dron 1 del ciclo
             StartCoroutine(SecuenciaEnsamblaje());
             brazoAlpha.IniciarSecuenciaConEspera();
             brazoBeta.IniciarSecuenciaConEspera();
@@ -124,10 +140,8 @@ public class Produccion : MonoBehaviour
 
             yield return new WaitUntil(() => brazoPaletizador.TieneObjeto);
 
-            // ── FIN cronómetro del dron 1: Omega ya entregó el dron al Paletizador ──
             ReportarTiempoDron(droneActual + 1);
 
-            // ── INICIA cronómetro del dron 2 (arrancan los brazos para el siguiente) ──
             tiempoInicioDronActual = Time.time;
 
             StartCoroutine(SecuenciaEnsamblaje());
@@ -145,13 +159,16 @@ public class Produccion : MonoBehaviour
             cajasEnCarroActual++;
             Debug.Log($"[Produccion] ✅ Dron {droneActual}/{dronesAProducir} paletizado");
 
+            // Registro al logger CSV
+            if (logger != null)
+                logger.RegistrarCaja(droneActual);
+
             if (cajasEnCarroActual >= CAJAS_POR_CARRO)
             {
                 yield return StartCoroutine(SwapCarro());
                 cajasEnCarroActual = 0;
             }
 
-            // Drones 2..8 del ciclo
             while (droneActual < dronesAProducir && cajasEnCarroActual < CAJAS_POR_CARRO * 2)
             {
                 brazoPaletizador.ResetCompleto();
@@ -164,12 +181,10 @@ public class Produccion : MonoBehaviour
 
                 yield return new WaitUntil(() => brazoPaletizador.TieneObjeto);
 
-                // ── FIN cronómetro del dron actual: Omega ya entregó al Paletizador ──
                 ReportarTiempoDron(droneActual + 1);
 
                 if (droneActual < dronesAProducir - 1)
                 {
-                    // ── INICIA cronómetro del próximo dron (arrancan los brazos) ──
                     tiempoInicioDronActual = Time.time;
 
                     StartCoroutine(SecuenciaEnsamblaje());
@@ -188,6 +203,10 @@ public class Produccion : MonoBehaviour
                 cajasEnCarroActual++;
                 Debug.Log($"[Produccion] ✅ Dron {droneActual}/{dronesAProducir} paletizado");
 
+                // Registro al logger CSV
+                if (logger != null)
+                    logger.RegistrarCaja(droneActual);
+
                 if (cajasEnCarroActual >= CAJAS_POR_CARRO)
                 {
                     yield return StartCoroutine(SwapCarro());
@@ -196,16 +215,31 @@ public class Produccion : MonoBehaviour
             }
         }
 
-        Debug.Log($"[Produccion] 🏁 PRODUCCIÓN COMPLETA: {droneActual} drones");
+        simulacionActiva = false;
+        int mTot = Mathf.FloorToInt(tiempoTotalSimulacion / 60f);
+        int sTot = Mathf.FloorToInt(tiempoTotalSimulacion % 60f);
+        string msgFinal = $"TOTAL: {mTot:00}:{sTot:00}";
+        OnLogTiempo?.Invoke(msgFinal);
+        Debug.Log($"[Produccion] 🏁 Tiempo total: {msgFinal}");
+
+        // Guardar CSV de la corrida (si está activado en el Inspector del logger)
+        if (logger != null)
+            logger.GuardarCSV();
     }
 
-    // Reporta el tiempo de ensamblaje puro (desde arranque de brazos hasta que Omega entrega al Paletizador)
     private void ReportarTiempoDron(int numeroDron)
     {
         float tiempoCiclo = Time.time - tiempoInicioDronActual;
         int minutos = Mathf.FloorToInt(tiempoCiclo / 60f);
         int segundos = Mathf.FloorToInt(tiempoCiclo % 60f);
-        Debug.Log($"[Produccion] ⏱ Dron {numeroDron} ensamblado en {minutos}m {segundos}s ({tiempoCiclo:F2}s)");
+        string msg = $"Dron {numeroDron}: {minutos:00}:{segundos:00}";
+        ultimoLogTiempo = msg;
+        OnLogTiempo?.Invoke(msg);
+        Debug.Log($"[Produccion] ⏱ {msg} ({tiempoCiclo:F2}s)");
+
+        // Registro al logger CSV
+        if (logger != null)
+            logger.RegistrarDron(numeroDron, tiempoCiclo);
     }
 
     IEnumerator SecuenciaEnsamblaje()
@@ -283,8 +317,6 @@ public class Produccion : MonoBehaviour
         }
 
         Destroy(carroSaliente);
-
-        // Avanzar carroActual ANTES de instanciar el nuevo
         carroActual++;
 
         if (droneActual >= dronesAProducir)
@@ -304,7 +336,6 @@ public class Produccion : MonoBehaviour
         GameObject carroNuevo = Instantiate(carroPrefab, posInicial, rotSlot);
         carroNuevo.name = "CARRO_slot" + slotLiberado + "_v" + (carroActual + 1);
 
-        // Nuevo carro va al FINAL del array, nunca sobreescribe carros existentes
         System.Array.Resize(ref carros, carros.Length + 1);
         carros[carros.Length - 1] = carroNuevo;
 

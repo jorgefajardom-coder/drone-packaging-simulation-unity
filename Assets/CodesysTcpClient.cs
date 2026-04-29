@@ -87,11 +87,24 @@ public class CodesysTcpClient : MonoBehaviour
         try
         {
             CleanupConnection();
-            _lastVentosas = 0xFF;  // ← NUEVO: forzar reenvío al reconectar
+            _lastVentosas = 0xFF;
             _lastLeds = 0xFF;
 
             _client = new TcpClient();
-            _client.Connect(codesysIP, codesysPort);
+
+            // Conexión con timeout de 2s para no bloquear Unity
+            IAsyncResult result = _client.BeginConnect(codesysIP, codesysPort, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(2));
+
+            if (!success || !_client.Connected)
+            {
+                _client.Close();
+                isConnected = false;
+                Log("[TCP] Timeout de conexión");
+                return;
+            }
+
+            _client.EndConnect(result);
             _stream = _client.GetStream();
             _running = true;
             isConnected = true;
@@ -253,6 +266,12 @@ public class CodesysTcpClient : MonoBehaviour
         try { _client?.Close(); } catch { }
         _stream = null;
         _client = null;
+
+        // Esperar que los hilos terminen antes de crear nuevos
+        try { _receiveThread?.Join(500); } catch { }
+        try { _sendThread?.Join(500); } catch { }
+        _receiveThread = null;
+        _sendThread = null;
     }
 
     void Log(string msg)

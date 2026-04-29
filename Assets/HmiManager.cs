@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System;
 
 // Requiere: CodesysTcpClient.cs + Produccion.cs accesibles en escena
 // Unity 2021.3.45f LTS | TextMeshPro
@@ -20,7 +19,7 @@ public class HmiManager : MonoBehaviour
     public Image imgNeumatica;
     public Image imgTcpEstado;
     public TMP_Text txtConexion;
-    public TMP_Text txtConexion2;   // panel TCP secundario
+    public TMP_Text txtConexion2;
     public TMP_Text txtSistema;
 
     // ── Brazos ───────────────────────────────────────────────────────────────
@@ -40,16 +39,16 @@ public class HmiManager : MonoBehaviour
     // ── Cajas / LEDs ─────────────────────────────────────────────────────────
     [Header("LEDs de Cajas (índice 0 = LED1 = Caja 1)")]
     public Image[] imgLeds = new Image[8];
-    public TMP_Text txtCajaContador;   // "X / 8"
-    public TMP_Text txtDroneActual;    // "Dron: X / 8"
+    public TMP_Text txtCajaContador;
+    public TMP_Text txtDroneActual;
 
-    // ── PLC bytes (imágenes de bits opcionales) ───────────────────────────────
+    // ── PLC bytes ─────────────────────────────────────────────────────────────
     [Header("PLC Bits — Entradas (índice 0=B7 … 7=B0, opcional)")]
     public Image[] imgEntBits = new Image[8];
     [Header("PLC Bits — Salidas plc1 (índice 0=B7 … 7=B0, opcional)")]
     public Image[] imgSalBits = new Image[8];
 
-    // ── Botones Unity → CoDeSys ───────────────────────────────────────────────
+    // ── Botones ───────────────────────────────────────────────────────────────
     [Header("Botones Ventosas")]
     public Button btnOmegaOn;
     public Button btnOmegaOff;
@@ -59,11 +58,12 @@ public class HmiManager : MonoBehaviour
     [Header("Botones LEDs")]
     public Button btnAllLedsOn;
     public Button btnAllLedsOff;
-    public Button[] btnLeds = new Button[8];   // toggle individual por caja
+    public Button[] btnLeds = new Button[8];
 
     // ── Métricas ──────────────────────────────────────────────────────────────
     [Header("Métricas de ciclo")]
     public TMP_Text txtTiempoCiclo;
+    public TMP_Text txtTiempoTotal;
     public TMP_Text txtCarro;
 
     // ── Log ───────────────────────────────────────────────────────────────────
@@ -86,11 +86,11 @@ public class HmiManager : MonoBehaviour
     private bool _prevPaletActivo = false;
     private float _omegaTimer = 0f;
     private float _paletTimer = 0f;
-    private const float DEBOUNCE = 0.1f; // 100ms para estabilizar
+    private const float DEBOUNCE = 0.1f;
 
-    // LEDs por tapa cerrada
-    private CerradorTapa[] _cerradoresTapa = new CerradorTapa[8];
+    // LEDs — se controlan por droneActual % 8
     private bool[] _ledActivado = new bool[8];
+    private int _prevDroneActual = -1;
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -102,54 +102,24 @@ public class HmiManager : MonoBehaviour
         if (tcp != null)
             tcp.OnLogMessage += AddLog;
 
+        if (produccion != null && HasOnLogTiempo())
+            SubscribeOnLogTiempo();
+
         WireButtons();
-        BuscarCerradoresTapa();
-
-        RetiradorCarro.OnCarroRetirado -= OnCarroRetirado;
     }
 
-    // ── Búsqueda inicial de cerradores ────────────────────────────────────────
-    void BuscarCerradoresTapa()
+    // Verifica si Produccion tiene el evento OnLogTiempo antes de suscribirse
+    bool HasOnLogTiempo()
     {
-        for (int i = 0; i < 8; i++)
-        {
-            string nombreCaja = $"CajaPrefab(Clone{i + 1})";
-            GameObject caja = GameObject.Find(nombreCaja);
-            if (caja != null)
-                _cerradoresTapa[i] = caja.GetComponent<CerradorTapa>();
-        }
+        var field = typeof(Produccion).GetEvent("OnLogTiempo");
+        return field != null;
     }
 
-    void OnCarroRetirado(int[] cajasDelCarro)
+    void SubscribeOnLogTiempo()
     {
-        // Solo resetear cuando se retira el carro 2 (cajas 5,6,7,8)
-        bool esCarro2 = System.Array.IndexOf(cajasDelCarro, 8) >= 0;
-        if (!esCarro2) return;
-
-        // Verificar que los 8 LEDs estén activos antes de resetear
-        bool todosOn = true;
-        for (int i = 0; i < 8; i++)
-            if (!_ledActivado[i]) { todosOn = false; break; }
-
-        if (!todosOn) return;
-
-        // Reset CODESYS
-        tcp?.SetAllLeds(false);
-        AddLog("LEDs CODESYS → RESET (lote 8 completo)");
-
-        // Reset HMI
-        for (int i = 0; i < 8; i++)
-        {
-            _ledActivado[i] = false;
-            _cerradoresTapa[i] = null;
-            SetColor(imgLeds[i], colorOff);
-        }
-
-        // Reset contador 0/8
-        SetText(txtCajaContador, "0 / 8");
+        try { produccion.OnLogTiempo += AddLog; } catch { }
     }
 
-    // ── Botones ───────────────────────────────────────────────────────────────
     void WireButtons()
     {
         btnOmegaOn?.onClick.AddListener(() => { tcp?.SetVentosaOmega(true); AddLog("Ventosa OMEGA → ON"); });
@@ -173,7 +143,6 @@ public class HmiManager : MonoBehaviour
         }
     }
 
-    // ── Update ────────────────────────────────────────────────────────────────
     void Update()
     {
         if (tcp == null) return;
@@ -189,7 +158,6 @@ public class HmiManager : MonoBehaviour
     void RefreshConexion()
     {
         bool con = tcp.isConnected;
-
         SetColor(imgTcpEstado, con ? colorOn : colorWarn);
 
         if (txtConexion != null)
@@ -212,7 +180,7 @@ public class HmiManager : MonoBehaviour
             txtSistema.text = tcp.SISTEMA_ON ? "SISTEMA ON" : "SISTEMA OFF";
     }
 
-    // ── Ventosas: detección de cambio + envío a CODESYS ──────────────────────
+    // ── Ventosas ──────────────────────────────────────────────────────────────
     void RefreshVentosas()
     {
         if (produccion == null || tcp == null) return;
@@ -220,7 +188,6 @@ public class HmiManager : MonoBehaviour
         bool omegaActivo = produccion.OmegaActivo;
         bool paletActivo = produccion.PaletActivo;
 
-        // Debounce Omega
         if (omegaActivo != _prevOmegaActivo)
         {
             _omegaTimer += Time.deltaTime;
@@ -232,12 +199,8 @@ public class HmiManager : MonoBehaviour
                 _omegaTimer = 0f;
             }
         }
-        else
-        {
-            _omegaTimer = 0f;
-        }
+        else { _omegaTimer = 0f; }
 
-        // Debounce Paletizador
         if (paletActivo != _prevPaletActivo)
         {
             _paletTimer += Time.deltaTime;
@@ -249,28 +212,22 @@ public class HmiManager : MonoBehaviour
                 _paletTimer = 0f;
             }
         }
-        else
-        {
-            _paletTimer = 0f;
-        }
+        else { _paletTimer = 0f; }
 
-        // Indicador general de neumática
         SetColor(imgNeumatica, omegaActivo || paletActivo);
     }
 
-    // ── Estado de brazos ─────────────────────────────────────────────────────
+    // ── Brazos ────────────────────────────────────────────────────────────────
     void RefreshBrazos()
     {
         if (produccion == null) return;
 
-        // OMEGA — neumática independiente
         bool omegaOn = produccion.OmegaActivo;
         SetColor(imgOmegaEstado, omegaOn ? colorOn : colorOff);
         SetText(txtOmegaEstado, omegaOn ? "ACTIVO" : "IDLE", omegaOn ? colorOn : colorOff);
         SetText(txtOmegaAccion, produccion.OmegaAccion);
         SetText(txtOmegaPneu, omegaOn ? "ON" : "OFF", omegaOn ? colorOn : colorOff);
 
-        // PALETIZADOR — neumática independiente
         bool paletOn = produccion.PaletActivo;
         SetColor(imgPaletEstado, paletOn ? colorOn : colorOff);
         SetText(txtPaletEstado, paletOn ? "ACTIVO" : "ESPERA", paletOn ? colorOn : colorOff);
@@ -279,48 +236,78 @@ public class HmiManager : MonoBehaviour
         SetText(txtPaletCarro, "CARRO: " + produccion.CarroActualTag);
     }
 
-    // ── LEDs por tapa cerrada (fuente de verdad: Unity) ───────────────────────
+    // ── LEDs por ciclo de 8 drones ────────────────────────────────────────────
     void RefreshLedsCajas()
     {
-        // Reset de flags cuando la caja fue destruida (nuevo ciclo)
-        for (int i = 0; i < 8; i++)
-        {
-            if (_cerradoresTapa[i] == null && _ledActivado[i])
-                _ledActivado[i] = false;
-        }
+        if (produccion == null) return;
 
-        // Re-buscar cerradores de cajas spawneadas tardíamente
-        for (int i = 0; i < 8; i++)
+        int droneActual = produccion.droneActual;
+
+        // Sin cambio, no hacer nada
+        if (droneActual == _prevDroneActual) return;
+        _prevDroneActual = droneActual;
+
+        // Posición dentro del ciclo de 8 (0..7)
+        // droneActual=1 → ciclo=1 (LED1 ON), droneActual=8 → ciclo=0 (reset)
+        int ciclo = droneActual % 8;
+
+        // Detectar inicio de nuevo ciclo (ciclo==0 y droneActual>0)
+        if (ciclo == 0 && droneActual > 0)
         {
-            if (_cerradoresTapa[i] == null)
+            // Asegurar que el LED 8 esté encendido antes de resetear
+            if (!_ledActivado[7])
             {
-                GameObject caja = GameObject.Find($"CajaPrefab(Clone{i + 1})");
-                if (caja != null)
-                    _cerradoresTapa[i] = caja.GetComponent<CerradorTapa>();
+                _ledActivado[7] = true;
+                tcp?.SetLed(8, true);
+                SetColor(imgLeds[7], colorOn);
+                AddLog("LED 8 ON");
             }
+
+            // Pequeña pausa visual — el reset ocurre en el próximo frame
+            // para que se vea el LED 8 encendido brevemente
+            _pendingReset = true;
+            _resetFrame = Time.frameCount + 2;
+            return;
         }
 
-        int cajasDone = 0;
-        for (int i = 0; i < 8; i++)
+        // Encender LEDs hasta el índice actual
+        for (int i = 0; i < ciclo; i++)
         {
-            bool cerrada = _cerradoresTapa[i] != null && _cerradoresTapa[i].tapaCerrada;
-
-            // Flanco: recién cerrada → encender LED y enviar a CODESYS
-            if (cerrada && !_ledActivado[i])
+            if (!_ledActivado[i])
             {
                 _ledActivado[i] = true;
                 tcp?.SetLed(i + 1, true);
-                AddLog($"LED {i + 1} ON → Caja {i + 1} cerrada");
+                SetColor(imgLeds[i], colorOn);
+                AddLog($"LED {i + 1} ON → Dron {droneActual}");
             }
-
-            SetColor(imgLeds[i], cerrada ? colorOn : colorOff);
-            if (cerrada) cajasDone++;
         }
 
-        SetText(txtCajaContador, $"{cajasDone} / 8");
-        SetText(txtDroneActual, produccion != null
-            ? $"Dron: {produccion.droneActual} / {produccion.dronesAProducir}"
-            : "---");
+        SetText(txtCajaContador, $"{ciclo}");
+        SetText(txtDroneActual, $"Dron: {droneActual} / {produccion.dronesAProducir}");
+    }
+
+    // ── Reset pendiente (se ejecuta 2 frames después para ver LED 8) ──────────
+    private bool _pendingReset = false;
+    private int _resetFrame = 0;
+
+    void LateUpdate()
+    {
+        if (!_pendingReset) return;
+        if (Time.frameCount < _resetFrame) return;
+
+        _pendingReset = false;
+
+        tcp?.SetAllLeds(false);
+        AddLog("LEDs CODESYS → RESET (ciclo 8 completo)");
+
+        for (int i = 0; i < 8; i++)
+        {
+            _ledActivado[i] = false;
+            SetColor(imgLeds[i], colorOff);
+        }
+
+        SetText(txtCajaContador, "0");
+        SetText(txtDroneActual, $"Dron: {produccion.droneActual} / {produccion.dronesAProducir}");
     }
 
     // ── Bits PLC ──────────────────────────────────────────────────────────────
@@ -340,7 +327,7 @@ public class HmiManager : MonoBehaviour
         }
     }
 
-    // ── Métricas de ciclo ─────────────────────────────────────────────────────
+    // ── Métricas ──────────────────────────────────────────────────────────────
     void RefreshMetricas()
     {
         if (produccion == null) return;
@@ -348,8 +335,17 @@ public class HmiManager : MonoBehaviour
         float t = produccion.TiempoCicloActual;
         int min = Mathf.FloorToInt(t / 60f);
         int seg = Mathf.FloorToInt(t % 60f);
-        SetText(txtTiempoCiclo, $"{min:00}:{seg:00}");
+        SetText(txtTiempoCiclo, $"Ciclo: {min:00}:{seg:00}");
         SetText(txtCarro, "Carro: " + produccion.CarroActualTag);
+
+        try
+        {
+            float tot = produccion.tiempoTotalSimulacion;
+            int mTot = Mathf.FloorToInt(tot / 60f);
+            int sTot = Mathf.FloorToInt(tot % 60f);
+            SetText(txtTiempoTotal, $"Total: {mTot:00}:{sTot:00}");
+        }
+        catch { }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -369,5 +365,6 @@ public class HmiManager : MonoBehaviour
     void OnDestroy()
     {
         if (tcp != null) tcp.OnLogMessage -= AddLog;
+        try { if (produccion != null) produccion.OnLogTiempo -= AddLog; } catch { }
     }
 }

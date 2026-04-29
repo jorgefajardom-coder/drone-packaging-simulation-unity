@@ -1,0 +1,14 @@
+﻿Fecha,Hora,Tipo,Numero,Tiempo_Segundos
+2026-04-28,13:19:59,DRON,1,32,64
+2026-04-28,13:20:04,CAJA,1,
+2026-04-28,13:20:35,DRON,2,32,03
+2026-04-28,13:20:41,CAJA,2,
+2026-04-28,13:21:12,DRON,3,31,28
+2026-04-28,13:21:19,CAJA,3,
+
+RESUMEN
+Drones ensamblados,3
+Cajas paletizadas,3
+Tiempo promedio (s),31,99
+Tiempo minimo (s),31,28
+Tiempo maximo (s),32,64

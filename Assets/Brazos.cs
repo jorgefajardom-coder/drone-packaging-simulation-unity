@@ -73,6 +73,9 @@ public class Brazos : MonoBehaviour
     public float homeArm03 = 0f;
     public float homeGripperAssembly = 0f;
 
+    [Header("Logger de producción (asignar el mismo de Produccion)")]
+    public LogProduccion logger;
+
     void Awake()
     {
         LoadFromFile();
@@ -331,6 +334,10 @@ public class Brazos : MonoBehaviour
         esperandoPose = false;
         timerPose = 0f;
         Debug.Log($"▶ [{gameObject.name}] Secuencia iniciada ({poses.Count} pasos)");
+
+        // Notificar al logger
+        if (logger != null)
+            logger.RegistrarBrazoActivo(gameObject.name);
     }
 
     [ContextMenu("Iniciar secuencia con espera")]
@@ -373,6 +380,11 @@ public class Brazos : MonoBehaviour
             jugandoSecuencia = false;
             secuenciaTerminada = true;
             Debug.Log($"⏹ [{gameObject.name}] Secuencia terminada");
+
+            // Notificar al logger
+            if (logger != null)
+                logger.RegistrarBrazoInactivo(gameObject.name);
+
             return;
         }
 
