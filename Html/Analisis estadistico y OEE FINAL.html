@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Análisis Estadístico - Producción 2026-04-28</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800&family=Barlow:wght@300;400;500&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root {
+  --bg:    #08090b;
+  --bg2:   #0f1014;
+  --bg3:   #161820;
+  --bg4:   #1c1f2a;
+  --line:  rgba(255,255,255,0.06);
+  --line2: rgba(255,255,255,0.12);
+  --gold:  #f5c842;
+  --gold2: #e8a800;
+  --cyan:  #38bdf8;
+  --rose:  #fb7185;
+  --lime:  #a3e635;
+  --violet:#a78bfa;
+  --text:  #d4d8e8;
+  --text2: #6b7280;
+  --text3: #374151;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Barlow',sans-serif;
+  font-size:15px;
+  line-height:1.6;
+}
+/* grid lines background */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(245,200,66,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,200,66,0.02) 1px, transparent 1px);
+  background-size:48px 48px;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ─── HEADER ─── */
+header{
+  position:relative;
+  z-index:1;
+  padding:56px 64px 48px;
+  border-bottom:1px solid var(--line2);
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:32px;
+  align-items:end;
+}
+.h-left{}
+.h-tag{
+  font-family:'Fira Code',monospace;
+  font-size:11px;
+  color:var(--gold);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  margin-bottom:16px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.h-tag::before{content:'';width:24px;height:1px;background:var(--gold);}
+h1{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:64px;
+  font-weight:800;
+  line-height:0.95;
+  letter-spacing:-0.01em;
+  color:#fff;
+  text-transform:uppercase;
+}
+h1 em{color:var(--gold);font-style:normal;}
+.h-sub{
+  font-family:'Barlow',sans-serif;
+  font-size:14px;
+  font-weight:300;
+  color:var(--text2);
+  margin-top:14px;
+  max-width:520px;
+  line-height:1.7;
+}
+.h-right{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  align-items:flex-end;
+}
+.h-meta{
+  font-family:'Fira Code',monospace;
+  font-size:11px;
+  color:var(--text3);
+  text-align:right;
+}
+.h-meta span{color:var(--text2);}
+
+/* ─── MAIN ─── */
+main{
+  position:relative;
+  z-index:1;
+  max-width:1280px;
+  margin:0 auto;
+  padding:64px 64px 96px;
+}
+
+/* ─── SECTION ─── */
+section{margin-bottom:80px;}
+.sec-head{
+  display:flex;
+  align-items:baseline;
+  gap:16px;
+  margin-bottom:32px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:12px;
+}
+.sec-num{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:11px;
+  font-weight:600;
+  color:var(--gold);
+  letter-spacing:0.15em;
+  text-transform:uppercase;
+  padding:2px 8px;
+  border:1px solid rgba(245,200,66,0.3);
+  border-radius:2px;
+  flex-shrink:0;
+}
+h2{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:28px;
+  font-weight:700;
+  color:#fff;
+  text-transform:uppercase;
+  letter-spacing:0.02em;
+}
+.sec-desc{
+  font-size:13px;
+  color:var(--text2);
+  font-weight:300;
+  margin-left:auto;
+  font-family:'Fira Code',monospace;
+}
+
+/* ─── STAT BLOCKS ─── */
+.stat-grid{
+  display:grid;
+  grid-template-columns:repeat(5,1fr);
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:4px;
+  overflow:hidden;
+  margin-bottom:24px;
+}
+.stat-block{
+  background:var(--bg2);
+  padding:24px 20px;
+}
+.sb-label{
+  font-family:'Fira Code',monospace;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  color:var(--text3);
+  margin-bottom:8px;
+}
+.sb-val{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:32px;
+  font-weight:700;
+  color:#fff;
+  line-height:1;
+}
+.sb-val.gold{color:var(--gold);}
+.sb-val.cyan{color:var(--cyan);}
+.sb-val.rose{color:var(--rose);}
+.sb-val.lime{color:var(--lime);}
+.sb-unit{font-size:14px;font-weight:400;color:var(--text2);margin-left:2px;}
+.sb-sub{font-size:11px;color:var(--text2);margin-top:6px;font-family:'Fira Code',monospace;}
+
+/* ─── CARDS ─── */
+.card{
+  background:var(--bg2);
+  border:1px solid var(--line);
+  border-radius:4px;
+  padding:28px;
+  margin-bottom:20px;
+}
+.card-title{
+  font-family:'Barlow Condensed',sans-serif;
+  font-size:16px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  color:var(--text);
+  margin-bottom:4px;
+}
+.card-sub{
+  font-size:12px;
+  color:var(--text2);
+  font-weight:300;
+  margin-bottom:20px;
+  font-family:'Fira Code',monospace;
+}
+.chart-wrap{position:relative;width:100%;}
+
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
+.four{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px;}
+
+/* ─── TABLE ─── */
+.data-table{width:100%;border-collapse:collapse;font-family:'Fira Code',monospace;font-size:12px;}
+.data-table thead tr{border-bottom:1px solid var(--line2);}
+.data-table th{
+  padding:8px 12px 10px;
+  text-align:left;
+  color:var(--text3);
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:0.1em;
+  font-weight:500;
+}
+.data-table th:not(:first-child){text-align:right;}
+.data-table tbody tr{border-bottom:1px solid var(--line);}
+.data-table tbody tr:hover{background:rgba(245,200,66,0.03);}
+.data-table td{padding:11px 12px;color:var(--text);}
+.data-table td:not(:first-child){text-align:right;}
+.tag{
+  display:inline-block;
+  font-size:10px;
+  padding:2px 7px;
+  border-radius:2px;
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+}
+.tag-gold{background:rgba(245,200,66,0.12);color:var(--gold);border:1px solid rgba(245,200,66,0.25);}
+.tag-cyan{background:rgba(56,189,248,0.1);color:var(--cyan);border:1px solid rgba(56,189,248,0.2);}
+.tag-rose{background:rgba(251,113,133,0.1);color:var(--rose);border:1px solid rgba(251,113,133,0.2);}
+.tag-lime{background:rgba(163,230,53,0.1);color:var(--lime);border:1px solid rgba(163,230,53,0.2);}
+.tag-violet{background:rgba(167,139,250,0.1);color:var(--violet);border:1px solid rgba(167,139,250,0.2);}
+
+/* ─── FORMULA BOX ─── */
+.formula{
+  background:var(--bg3);
+  border-left:3px solid var(--gold);
+  padding:16px 20px;
+  font-family:'Fira Code',monospace;
+  font-size:13px;
+  color:var(--gold);
+  margin:12px 0 20px;
+  border-radius:0 4px 4px 0;
+  line-height:1.8;
+}
+.formula .comment{color:var(--text2);font-size:11px;}
+
+/* ─── BOX PLOTS SVG ─── */
+.box-area{padding:8px 0;}
+
+/* ─── INSIGHT STRIP ─── */
+.insight{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+  background:var(--bg3);
+  border:1px solid var(--line);
+  border-left:3px solid var(--gold);
+  border-radius:0 4px 4px 0;
+  padding:16px 20px;
+  margin-bottom:12px;
+}
+.insight-icon{font-size:16px;flex-shrink:0;margin-top:2px;}
+.insight-body{font-size:13px;color:var(--text2);line-height:1.7;}
+.insight-body strong{color:var(--text);font-weight:500;}
+
+/* ─── FOOTER ─── */
+footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--line);
+  padding:24px 64px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.ft{font-family:'Fira Code',monospace;font-size:11px;color:var(--text3);}
+
+/* ─── REFERENCES ─── */
+sup.ref{
+  font-family:'Fira Code',monospace;
+  font-size:9px;
+  color:var(--gold);
+  vertical-align:super;
+  margin-left:2px;
+  cursor:default;
+  border:1px solid rgba(245,200,66,0.35);
+  border-radius:2px;
+  padding:0 3px;
+  letter-spacing:0;
+  font-weight:600;
+  line-height:1;
+}
+.ref-section{
+  position:relative;
+  z-index:1;
+  max-width:1280px;
+  margin:0 auto 0;
+  padding:0 64px 80px;
+}
+.ref-section-head{
+  border-top:1px solid var(--line2);
+  border-bottom:1px solid var(--line);
+  padding:16px 0 12px;
+  margin-bottom:28px;
+  display:flex;
+  align-items:baseline;
+  gap:16px;
+}
+.ref-list{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px 40px;
+}
+.ref-item{
+  display:grid;
+  grid-template-columns:28px 1fr;
+  gap:0 8px;
+  font-family:'Fira Code',monospace;
+  font-size:11px;
+  color:var(--text2);
+  line-height:1.7;
+  border-bottom:1px solid var(--line);
+  padding-bottom:8px;
+}
+.ref-num{
+  color:var(--gold);
+  font-weight:600;
+  font-size:10px;
+  padding-top:2px;
+}
+.ref-item em{color:var(--text);font-style:italic;}
+.ref-item strong{color:var(--cyan);font-style:normal;font-weight:500;}
+.ref-badge{
+  display:inline-block;
+  font-size:9px;
+  padding:1px 5px;
+  border-radius:2px;
+  margin-left:4px;
+  background:rgba(245,200,66,0.1);
+  color:var(--gold);
+  border:1px solid rgba(245,200,66,0.2);
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:600;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  vertical-align:middle;
+}
+
+/* ─── ANIMATIONS ENHANCED ─── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+@keyframes slideLeft{from{opacity:0;transform:translateX(-18px);}to{opacity:1;transform:translateX(0);}}
+
+/* Scroll-reveal: elementos ocultos por defecto, visibles al activar */
+.reveal{opacity:0;transform:translateY(24px);transition:opacity 0.55s cubic-bezier(.22,.68,0,1.2),transform 0.55s cubic-bezier(.22,.68,0,1.2);}
+.reveal.visible{opacity:1;transform:translateY(0);}
+
+/* Stagger para hijos de grids */
+.stagger > *{opacity:0;transform:translateY(18px);transition:opacity 0.45s ease,transform 0.45s ease;}
+.stagger.visible > *:nth-child(1){transition-delay:.04s;}
+.stagger.visible > *:nth-child(2){transition-delay:.10s;}
+.stagger.visible > *:nth-child(3){transition-delay:.16s;}
+.stagger.visible > *:nth-child(4){transition-delay:.22s;}
+.stagger.visible > *:nth-child(5){transition-delay:.28s;}
+.stagger.visible > *:nth-child(6){transition-delay:.34s;}
+.stagger.visible > *{opacity:1;transform:translateY(0);}
+
+/* Cards hover lift */
+.card{transition:border-color .25s ease,box-shadow .25s ease,transform .25s ease;}
+.card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.35);border-color:rgba(245,200,66,0.18);}
+
+/* Stat block glow al hover */
+.stat-block{transition:background .2s ease;}
+.stat-block:hover{background:var(--bg3);}
+
+/* Pulse glow en valor OEE principal */
+@keyframes oeeGlow{
+  0%,100%{text-shadow:0 0 8px rgba(245,200,66,.3);}
+  50%{text-shadow:0 0 24px rgba(245,200,66,.7),0 0 40px rgba(245,200,66,.3);}
+}
+.sb-val.gold{animation:oeeGlow 3s ease-in-out infinite;}
+
+/* Scan line en header */
+@keyframes scanLine{
+  0%{top:-2px;opacity:.6;}
+  100%{top:100%;opacity:0;}
+}
+header::after{
+  content:'';
+  position:absolute;
+  left:0;right:0;top:-2px;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(245,200,66,.5),transparent);
+  animation:scanLine 4s linear infinite;
+  pointer-events:none;
+}
+
+/* Blink cursor en h-tag */
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.h-tag::after{content:'_';animation:blink 1s step-end infinite;color:var(--gold);margin-left:2px;}
+
+/* Shimmer en ref badge */
+@keyframes shimmer{
+  0%{background-position:-200% 0;}
+  100%{background-position:200% 0;}
+}
+.ref-badge{
+  background-size:200% 100%;
+  background-image:linear-gradient(90deg,rgba(245,200,66,.1) 0%,rgba(245,200,66,.25) 50%,rgba(245,200,66,.1) 100%);
+  animation:shimmer 2.5s linear infinite;
+}
+
+/* Progress bar animada para OEE factors */
+@keyframes barGrow{from{width:0;}to{width:var(--w);}}
+.oee-bar{
+  height:4px;border-radius:2px;
+  width:0;
+  animation:barGrow .9s cubic-bezier(.22,.68,0,1.2) forwards;
+}
+
+/* Tabla rows - entrada escalonada */
+.data-table tbody tr{
+  opacity:0;transform:translateX(-8px);
+  transition:opacity .35s ease,transform .35s ease,background .15s ease;
+}
+.data-table.visible tbody tr:nth-child(1){transition-delay:.05s;}
+.data-table.visible tbody tr:nth-child(2){transition-delay:.10s;}
+.data-table.visible tbody tr:nth-child(3){transition-delay:.15s;}
+.data-table.visible tbody tr:nth-child(4){transition-delay:.20s;}
+.data-table.visible tbody tr:nth-child(5){transition-delay:.25s;}
+.data-table.visible tbody tr:nth-child(6){transition-delay:.30s;}
+.data-table.visible tbody tr:nth-child(7){transition-delay:.35s;}
+.data-table.visible tbody tr:nth-child(8){transition-delay:.40s;}
+.data-table.visible tbody tr:nth-child(9){transition-delay:.45s;}
+.data-table.visible tbody tr:nth-child(10){transition-delay:.50s;}
+.data-table.visible tbody tr:nth-child(11){transition-delay:.55s;}
+.data-table.visible tbody tr:nth-child(12){transition-delay:.60s;}
+.data-table.visible tbody tr:nth-child(13){transition-delay:.65s;}
+.data-table.visible tbody tr:nth-child(14){transition-delay:.70s;}
+.data-table.visible tbody tr:nth-child(15){transition-delay:.75s;}
+.data-table.visible tbody tr:nth-child(16){transition-delay:.80s;}
+.data-table.visible tbody tr{opacity:1;transform:translateX(0);}
+
+/* Insight strip - slide desde izquierda */
+.insight{opacity:0;transform:translateX(-16px);transition:opacity .5s ease,transform .5s ease,border-color .3s ease;}
+.insight.visible{opacity:1;transform:translateX(0);}
+.insight:hover{border-left-color:var(--gold2);}
+
+/* Formula box pop-in */
+.formula{opacity:0;transform:scale(.97);transition:opacity .4s ease,transform .4s ease;}
+.formula.visible{opacity:1;transform:scale(1);}
+
+/* Número counter - clase para valores que se animan */
+.count-anim{display:inline-block;}
+
+/* Section number badge pulse al aparecer */
+@keyframes badgePop{0%{transform:scale(0.7);opacity:0;}70%{transform:scale(1.12);}100%{transform:scale(1);opacity:1;}}
+.sec-num{animation:badgePop .5s cubic-bezier(.22,.68,0,1.2) both;}
+
+section{animation:none;opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="h-left">
+    <div class="h-tag">Simulación · Multi-Brazo · 2026-04-28</div>
+    <h1>Análisis<br><em>Estadístico</em></h1>
+    <p class="h-sub">Estadística descriptiva completa, distribuciones, correlaciones, percentiles y análisis de variabilidad para los 100 ciclos de producción y 4 brazos robóticos.</p>
+  </div>
+  <div class="h-right">
+    <div class="h-meta">archivo <span>Produccion_2026-04-28_15-18-36.csv</span></div>
+    <div class="h-meta">registros <span>1,001 filas · 6 variables</span></div>
+    <div class="h-meta">brazos <span>Alpha · Beta · Omega · Paletizador</span></div>
+    <div class="h-meta">período <span>14:18:11 → 15:18:33</span></div>
+    <div class="h-meta">ciclos <span>n = 100</span></div>
+  </div>
+</header>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════
+     S1 · ESTADÍSTICA DESCRIPTIVA - CICLO DE ENSAMBLAJE
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <h2>Estadística descriptiva - ciclo de ensamblaje (DRON)</h2>
+    <span class="sec-desc">n = 100 ciclos</span>
+  </div>
+
+  <div class="stat-grid" style="grid-template-columns:repeat(5,1fr)">
+    <div class="stat-block">
+      <div class="sb-label">Media (μ)</div>
+      <div class="sb-val gold">32.00<span class="sb-unit">s</span></div>
+      <div class="sb-sub">promedio aritmético</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Mediana (Me)</div>
+      <div class="sb-val">31.97<span class="sb-unit">s</span></div>
+      <div class="sb-sub">percentil 50</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Desv. típica (σ)</div>
+      <div class="sb-val cyan">0.298<span class="sb-unit">s</span></div>
+      <div class="sb-sub">dispersión poblacional</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Varianza (σ²)</div>
+      <div class="sb-val">0.0889<span class="sb-unit">s²</span></div>
+      <div class="sb-sub">cuadrado de la desv.</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">CV (%) <sup class="ref" title="Montgomery &amp; Runger, 2014">[1]</sup></div>
+      <div class="sb-val lime">0.93<span class="sb-unit">%</span></div>
+      <div class="sb-sub">coef. de variación</div>
+    </div>
+  </div>
+
+  <div class="stat-grid" style="grid-template-columns:repeat(6,1fr)">
+    <div class="stat-block">
+      <div class="sb-label">Mínimo</div>
+      <div class="sb-val lime">31.44<span class="sb-unit">s</span></div>
+      <div class="sb-sub">dron #39</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Máximo</div>
+      <div class="sb-val rose">32.87<span class="sb-unit">s</span></div>
+      <div class="sb-sub">dron #1</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Rango</div>
+      <div class="sb-val">1.43<span class="sb-unit">s</span></div>
+      <div class="sb-sub">máx − mín</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Q1 (P25)</div>
+      <div class="sb-val">31.74<span class="sb-unit">s</span></div>
+      <div class="sb-sub">percentil 25</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Q3 (P75)</div>
+      <div class="sb-val">32.22<span class="sb-unit">s</span></div>
+      <div class="sb-sub">percentil 75</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">IQR</div>
+      <div class="sb-val cyan">0.48<span class="sb-unit">s</span></div>
+      <div class="sb-sub">rango intercuartílico</div>
+    </div>
+  </div>
+
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat-block">
+      <div class="sb-label">Asimetría (γ₁) <sup class="ref" title="Montgomery &amp; Runger, 2014">[1]</sup></div>
+      <div class="sb-val">+0.21</div>
+      <div class="sb-sub">leve sesgo derecho</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Curtosis (γ₂) <sup class="ref" title="Montgomery &amp; Runger, 2014">[1]</sup></div>
+      <div class="sb-val">−0.42</div>
+      <div class="sb-sub">platicúrtica</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Error típico (SE) <sup class="ref" title="Walpole et al., 2012">[2]</sup></div>
+      <div class="sb-val">0.0298<span class="sb-unit">s</span></div>
+      <div class="sb-sub">σ / √n</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">IC 95% (μ) <sup class="ref" title="Walpole et al., 2012">[2]</sup></div>
+      <div class="sb-val" style="font-size:22px">31.94 – 32.06<span class="sb-unit">s</span></div>
+      <div class="sb-sub">intervalo de confianza</div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:4px">
+    <div class="card">
+      <div class="card-title">Distribución de frecuencias - ciclo (s)</div>
+      <div class="card-sub">histograma + curva de densidad estimada · n=100</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="ch_hist" role="img" aria-label="Histograma del tiempo de ciclo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Box-plot - ciclo de ensamblaje <sup class="ref" title="Tukey, 1977">[3]</sup></div>
+      <div class="card-sub">diagrama de caja y bigotes · percentiles + outliers</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="ch_box" role="img" aria-label="Box plot del ciclo de ensamblaje"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Serie temporal completa - tiempo por ciclo</div>
+    <div class="card-sub">valores individuales + media móvil (ventana=5) + bandas ±1σ y ±2σ</div>
+    <div class="chart-wrap" style="height:240px"><canvas id="ch_serie" role="img" aria-label="Serie temporal de ciclos con bandas de control"></canvas></div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">◆</div>
+    <div class="insight-body">El <strong>coeficiente de variación de 0.93%</strong> es excepcionalmente bajo para un sistema de manufactura. Valores menores al 5% indican procesos bajo control estadístico. La distribución es ligeramente <strong>platicúrtica</strong> (curtosis negativa), lo que significa que los tiempos tienden a dispersarse más uniformemente alrededor de la media que una distribución normal pura, sin picos concentrados ni colas pesadas.</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     S2 · ESTADÍSTICA POR BRAZO
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <h2>Estadística descriptiva por brazo robótico</h2>
+    <span class="sec-desc">n = 100 (Alpha, Beta, Omega) · n = 99 (Paletizador)</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tabla de estadísticos completos por brazo</div>
+    <div class="card-sub">media, mediana, σ, CV, mín, máx, Q1, Q3, IQR - todas las unidades en segundos</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Brazo</th><th>Media (s)</th><th>Mediana (s)</th><th>σ (s)</th><th>CV (%)</th>
+          <th>Mín (s)</th><th>Máx (s)</th><th>Rango (s)</th><th>Q1 (s)</th><th>Q3 (s)</th><th>IQR (s)</th><th>Rol</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="tag tag-gold">Alpha</span></td>
+          <td>25.27</td><td>25.29</td><td>0.230</td><td>0.91%</td>
+          <td>24.73</td><td>26.75</td><td>2.02</td><td>25.05</td><td>25.44</td><td>0.39</td>
+          <td style="color:var(--text2)">Ensamble - pinza</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-cyan">Beta</span></td>
+          <td>22.91</td><td>22.89</td><td>0.274</td><td>1.20%</td>
+          <td>22.12</td><td>24.40</td><td>2.28</td><td>22.57</td><td>23.14</td><td>0.57</td>
+          <td style="color:var(--text2)">Ensamble - pinza</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-rose">Omega</span></td>
+          <td>29.50</td><td>29.49</td><td>0.264</td><td>0.89%</td>
+          <td>28.92</td><td>30.28</td><td>1.36</td><td>29.24</td><td>29.73</td><td>0.49</td>
+          <td style="color:var(--text2)">Integración</td>
+        </tr>
+        <tr>
+          <td><span class="tag tag-violet">Paletizador</span></td>
+          <td>5.37</td><td>5.97</td><td>0.618</td><td>11.5%</td>
+          <td>4.38</td><td>6.38</td><td>2.00</td><td>4.60</td><td>6.01</td><td>1.41</td>
+          <td style="color:var(--text2)">Paletizado</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="three">
+    <div class="card">
+      <div class="card-title">Medias comparadas</div>
+      <div class="card-sub">μ por brazo · con etiquetas</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch_medias" role="img" aria-label="Medias por brazo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Desviación típica σ</div>
+      <div class="card-sub">dispersión absoluta por brazo</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch_sigma" role="img" aria-label="Desviación típica por brazo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Coeficiente de variación</div>
+      <div class="card-sub">CV = σ/μ × 100 - dispersión relativa</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch_cv" role="img" aria-label="CV por brazo"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Box-plots superpuestos - todos los brazos <sup class="ref" title="Tukey, 1977">[3]</sup></div>
+    <div class="card-sub">comparación de distribuciones: mediana, IQR, bigotes y valores extremos</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="ch_boxall" role="img" aria-label="Box plots de todos los brazos"></canvas></div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">◆</div>
+    <div class="insight-body">El <strong>Paletizador tiene CV = 11.5%</strong>, 10× más disperso que los otros brazos. Esto se debe a que sus ciclos alternan bimodalmente entre ~4.6 s y ~6.0 s - una distribución bimodal que eleva artificialmente la desviación estándar. </div>
+  </div>
+  <div class="insight" style="border-left-color:var(--cyan)">
+    <div class="insight-icon">◈</div>
+    <div class="insight-body"><strong>Alpha y Beta comparten el mismo rol</strong> (pinza) pero difieren 2.36 s en media (25.27 vs 22.91 s). Su σ es comparable (0.23 vs 0.27 s).</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     S3 · PERCENTILES Y DISTRIBUCIÓN
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">03</span>
+    <h2>Percentiles y distribución acumulada</h2>
+    <span class="sec-desc">ciclo de ensamblaje (DRON) · n=100</span>
+  </div>
+
+  <div class="four">
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P5</div><div class="sb-val">31.62<span class="sb-unit">s</span></div><div class="sb-sub">5% por debajo</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P10</div><div class="sb-val">31.67<span class="sb-unit">s</span></div><div class="sb-sub">10% por debajo</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P25</div><div class="sb-val">31.74<span class="sb-unit">s</span></div><div class="sb-sub">primer cuartil</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P50</div><div class="sb-val gold">31.97<span class="sb-unit">s</span></div><div class="sb-sub">mediana</div>
+    </div>
+  </div>
+  <div style="height:12px"></div>
+  <div class="four">
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P75</div><div class="sb-val">32.22<span class="sb-unit">s</span></div><div class="sb-sub">tercer cuartil</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P90</div><div class="sb-val">32.42<span class="sb-unit">s</span></div><div class="sb-sub">90% por debajo</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P95</div><div class="sb-val">32.60<span class="sb-unit">s</span></div><div class="sb-sub">95% por debajo</div>
+    </div>
+    <div class="stat-block" style="border:1px solid var(--line);border-radius:4px">
+      <div class="sb-label">P99</div><div class="sb-val rose">32.75<span class="sb-unit">s</span></div><div class="sb-sub">99% por debajo</div>
+    </div>
+  </div>
+  <div style="height:20px"></div>
+
+  <div class="two">
+    <div class="card">
+      <div class="card-title">Función de distribución acumulada (FDA)</div>
+      <div class="card-sub">proporción de ciclos ≤ t · escala lineal</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="ch_cdf" role="img" aria-label="FDA del tiempo de ciclo"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Percentiles P5–P95 por brazo</div>
+      <div class="card-sub">banda de operación típica de cada brazo</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="ch_pct" role="img" aria-label="Percentiles por brazo"></canvas></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">◆</div>
+    <div class="insight-body">La diferencia entre media (32.00 s) y mediana (31.97 s) es de solo <strong>0.03 s</strong>, confirmando una distribución muy simétrica. El 90% de los ciclos cae entre <strong>31.67 s y 32.42 s</strong> - un rango de apenas 0.75 s - lo que define el SLA operativo real de la simulación.</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     S4 · CORRELACIÓN Y TENDENCIA TEMPORAL
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">04</span>
+    <h2>Correlación y tendencia temporal</h2>
+    <span class="sec-desc">análisis de drift · regresión lineal</span>
+  </div>
+
+  <div class="formula">
+    <span class="comment">// Regresión lineal: y = β₀ + β₁·x - ciclo de ensamblaje vs número de ciclo [1]</span><br>
+    β₀ (intercepto) = 32.14 s &nbsp;&nbsp; β₁ (pendiente) = −0.0027 s/ciclo<br>
+    R² = 0.018 &nbsp;&nbsp; r (Pearson) = −0.134<br>
+    <span class="comment">// pendiente negativa casi nula → sin tendencia significativa (proceso estable)</span>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <div class="card-title">Regresión lineal - ciclo vs. número</div>
+      <div class="card-sub">scatter + recta de regresión + banda de confianza 95%</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="ch_reg" role="img" aria-label="Regresión lineal ciclo vs número"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Autocorrelación (ACF) - primeros 15 lags <sup class="ref" title="Box et al., 2015">[5]</sup></div>
+      <div class="card-sub">correlación del ciclo con sus propios valores retrasados</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="ch_acf" role="img" aria-label="Autocorrelación ACF"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Correlaciones cruzadas entre brazos (Pearson r)</div>
+    <div class="card-sub">correlación del tiempo de activación entre pares de brazos a lo largo de los 100 ciclos</div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Par</th><th>Pearson r <sup class="ref" title="Pearson, 1895">[4]</sup></th><th>Interpretación</th><th>Significado</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Alpha - Beta</td><td>+0.312</td><td><span class="tag tag-gold">Débil positiva</span></td><td style="color:var(--text2)">Leve sincronía en ciclos lentos/rápidos conjuntos</td></tr>
+        <tr><td>Alpha - Omega</td><td>+0.224</td><td><span class="tag tag-gold">Débil positiva</span></td><td style="color:var(--text2)">Variación similar pero independiente</td></tr>
+        <tr><td>Beta - Omega</td><td>+0.189</td><td><span class="tag tag-gold">Débil positiva</span></td><td style="color:var(--text2)">Escasa influencia mutua</td></tr>
+        <tr><td>Alpha - Paletizador</td><td>−0.043</td><td><span class="tag tag-violet">Nula</span></td><td style="color:var(--text2)">Independientes - roles no solapados</td></tr>
+        <tr><td>Beta - Paletizador</td><td>−0.071</td><td><span class="tag tag-violet">Nula</span></td><td style="color:var(--text2)">Independientes - roles no solapados</td></tr>
+        <tr><td>Omega - Paletizador</td><td>+0.058</td><td><span class="tag tag-violet">Nula</span></td><td style="color:var(--text2)">Independientes - roles no solapados</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">◆</div>
+    <div class="insight-body">La pendiente de regresión de <strong>−0.0027 s/ciclo</strong> implica que al final de los 100 ciclos el tiempo promedio sería 0.27 s menor que al inicio - estadísticamente no significativo (R²=0.018). El proceso <strong>no tiene drift temporal</strong>. La ACF confirma que los ciclos son estadísticamente independientes entre sí.</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     S5 · ANÁLISIS DE CAPACIDAD Y CONTROL
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">05</span>
+    <h2>Análisis de capacidad del proceso <sup class="ref" title="Shewhart, 1931; Montgomery, 2009">[6,7]</sup></h2>
+    <span class="sec-desc">límites de control estadístico (SPC)</span>
+  </div>
+
+  <div class="formula">
+    <span class="comment">// Límites de control estadístico (3σ) para ciclo de ensamblaje [6,7]</span><br>
+    UCL (Límite Superior) = μ + 3σ = 32.00 + 3(0.298) = <strong>32.894 s</strong><br>
+    LCL (Límite Inferior)  = μ − 3σ = 32.00 − 3(0.298) = <strong>31.106 s</strong><br>
+    <span class="comment">// Regla 3σ: ~99.73% de los valores deben caer dentro → 0 puntos fuera de control</span>
+  </div>
+
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="stat-block">
+      <div class="sb-label">Puntos fuera de control</div>
+      <div class="sb-val lime">0</div>
+      <div class="sb-sub">de 100 ciclos</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Puntos en zona de alerta (2σ)</div>
+      <div class="sb-val gold">4</div>
+      <div class="sb-sub">UCL₂σ = 32.596 s</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Cp (capacidad potencial)</div>
+      <div class="sb-val cyan">-</div>
+      <div class="sb-sub">sin especificaciones externas</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Estado del proceso</div>
+      <div class="sb-val lime" style="font-size:20px">BAJO CONTROL</div>
+      <div class="sb-sub">proceso estable</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">Carta de control X - ciclo de ensamblaje (SPC) <sup class="ref" title="Shewhart, 1931; Montgomery, 2009">[6,7]</sup></div>
+    <div class="card-sub">100 observaciones · UCL/LCL a 3σ · zona de alerta a 2σ · media móvil n=5</div>
+    <div class="chart-wrap" style="height:260px"><canvas id="ch_spc" role="img" aria-label="Carta de control SPC"></canvas></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <div class="card-title">Paletizador - análisis de bimodalidad</div>
+      <div class="card-sub">histograma mostrando distribución bimodal estructural</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch_bimod" role="img" aria-label="Bimodalidad Paletizador"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Comparativa σ / media (%) por brazo</div>
+      <div class="card-sub">precisión relativa de cada actuador</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="ch_prec" role="img" aria-label="Precisión relativa por brazo"></canvas></div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-icon">◆</div>
+    <div class="insight-body">Ningún ciclo supera el UCL de <strong>32.894 s</strong> (el máximo real fue 32.87 s, a solo 0.024 s del límite). El valor máximo observado se aproxima al limite superior de control, por lo que conviene ampliar el margen operativo reduciendo ligeramente la media o la variabilidad del ciclo.</div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════
+     S6 · RESUMEN DE ESTADÍSTICOS
+══════════════════════════════════════════════════════ -->
+<section>
+  <div class="sec-head">
+    <span class="sec-num">06</span>
+    <h2>Tabla resumen consolidada</h2>
+    <span class="sec-desc">todos los indicadores · todas las variables</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Estadísticos completos - todas las variables del sistema</div>
+    <div class="card-sub">incluyendo ciclo DRON, Alpha, Beta, Omega y Paletizador</div>
+    <table class="data-table">
+      <thead>
+        <tr><th>Estadístico</th><th>DRON (ciclo)</th><th>Alpha</th><th>Beta</th><th>Omega</th><th>Paletizador</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>n</td><td>100</td><td>100</td><td>100</td><td>100</td><td>99</td></tr>
+        <tr><td>Media (s)</td><td>32.000</td><td>25.268</td><td>22.910</td><td>29.505</td><td>5.373</td></tr>
+        <tr><td>Mediana (s)</td><td>31.970</td><td>25.290</td><td>22.890</td><td>29.490</td><td>5.970</td></tr>
+        <tr><td>Desv. típica σ (s)</td><td>0.298</td><td>0.230</td><td>0.274</td><td>0.264</td><td>0.618</td></tr>
+        <tr><td>Varianza σ² (s²)</td><td>0.0889</td><td>0.0529</td><td>0.0751</td><td>0.0697</td><td>0.382</td></tr>
+        <tr><td>CV (%)</td><td>0.93</td><td>0.91</td><td>1.20</td><td>0.89</td><td>11.5</td></tr>
+        <tr><td>Mínimo (s)</td><td>31.44</td><td>24.73</td><td>22.12</td><td>28.92</td><td>4.38</td></tr>
+        <tr><td>Q1 / P25 (s)</td><td>31.74</td><td>25.05</td><td>22.57</td><td>29.24</td><td>4.60</td></tr>
+        <tr><td>Mediana / P50 (s)</td><td>31.97</td><td>25.29</td><td>22.89</td><td>29.49</td><td>5.97</td></tr>
+        <tr><td>Q3 / P75 (s)</td><td>32.22</td><td>25.44</td><td>23.14</td><td>29.73</td><td>6.01</td></tr>
+        <tr><td>Máximo (s)</td><td>32.87</td><td>26.75</td><td>24.40</td><td>30.28</td><td>6.38</td></tr>
+        <tr><td>IQR (s)</td><td>0.48</td><td>0.39</td><td>0.57</td><td>0.49</td><td>1.41</td></tr>
+        <tr><td>Rango (s)</td><td>1.43</td><td>2.02</td><td>2.28</td><td>1.36</td><td>2.00</td></tr>
+        <tr><td>Asimetría γ₁</td><td>+0.21</td><td>+0.38</td><td>+1.12</td><td>+0.29</td><td>−0.44</td></tr>
+        <tr><td>Curtosis γ₂</td><td>−0.42</td><td>+2.81</td><td>+3.47</td><td>+0.51</td><td>−1.58</td></tr>
+        <tr><td>Error típico SE (s)</td><td>0.0298</td><td>0.0230</td><td>0.0274</td><td>0.0264</td><td>0.0621</td></tr>
+        <tr><td>Total acumulado (s)</td><td>3200.0</td><td>2526.8</td><td>2291.0</td><td>2950.5</td><td>536.9</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- ── SECCIÓN 6: OEE ANALYSIS ── -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="oee">
+  <div class="sec-head">
+    <span class="sec-num">07</span>
+    <h2>OEE - Overall Equipment Effectiveness <sup class="ref" title="Nakajima, 1988; ISO 22400-2:2014">[8,10]</sup></h2>
+    <span class="sec-desc">Análisis de eficiencia global</span>
+  </div>
+
+  <!-- OEE KPI Cards -->
+  <div class="stat-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px;">
+    <div class="stat-block">
+      <div class="sb-label">Disponibilidad <sup class="ref" title="Nakajima, 1988">[8]</sup></div>
+      <div class="sb-val cyan">88.18<span class="sb-unit">%</span></div>
+      <div class="sb-sub">tiempo_activo / tiempo_planificado</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Rendimiento <sup class="ref" title="Nakajima, 1988">[8]</sup></div>
+      <div class="sb-val lime">98.43<span class="sb-unit">%</span></div>
+      <div class="sb-sub">t_ideal(31.44s) / t_real(32.00s)</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Calidad <sup class="ref" title="Nakajima, 1988">[8]</sup></div>
+      <div class="sb-val" style="color:var(--violet)">100.00<span class="sb-unit">%</span></div>
+      <div class="sb-sub">100 drones buenos / 100 producidos</div>
+    </div>
+    <div class="stat-block" style="border-left:2px solid var(--gold)">
+      <div class="sb-label">OEE Final</div>
+      <div class="sb-val gold">86.80<span class="sb-unit">%</span></div>
+      <div class="sb-sub">Disp × Rend × Cal - Clase Mundial ✓</div>
+    </div>
+  </div>
+
+  <!-- Piezas ensambladas -->
+  <div class="stat-grid" style="grid-template-columns:repeat(6,1fr);margin-bottom:24px;">
+    <div class="stat-block" style="background:var(--bg3)">
+      <div class="sb-label">Total Piezas</div>
+      <div class="sb-val gold">1100</div>
+      <div class="sb-sub">11 piezas × 100 drones</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Motores</div>
+      <div class="sb-val cyan">400</div>
+      <div class="sb-sub">4 por dron</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Hélices</div>
+      <div class="sb-val lime">400</div>
+      <div class="sb-sub">4 por dron</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">PCB</div>
+      <div class="sb-val" style="color:var(--violet)">100</div>
+      <div class="sb-sub">1 por dron</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Base Inferior</div>
+      <div class="sb-val" style="color:var(--rose)">100</div>
+      <div class="sb-sub">1 por dron</div>
+    </div>
+    <div class="stat-block">
+      <div class="sb-label">Tapa Superior</div>
+      <div class="sb-val" style="color:#f97316">100</div>
+      <div class="sb-sub">1 por dron</div>
+    </div>
+  </div>
+
+  <!-- OEE Classification badge -->
+  <div class="card" style="display:flex;align-items:center;gap:32px;padding:20px 28px;margin-bottom:24px;border-color:rgba(245,200,66,0.25);background:linear-gradient(135deg,rgba(245,200,66,0.04),transparent);">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:48px;font-weight:800;color:var(--gold);line-height:1;">86.80%</div>
+    <div style="flex:1;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.05em;">Clase Mundial ✦ World-Class OEE <sup class="ref" title="Nakajima, 1988; Hansen, 2001">[8,9]</sup></div>
+      <div style="font-size:13px;color:var(--text2);margin-top:6px;font-family:'Fira Code',monospace;">El OEE simulado alcanza 86.80%, valor superior al umbral comúnmente asociado a clase mundial (≥85%) <sup class="ref" title="Hansen, 2001">[9]</sup>; sin embargo, este resultado debe interpretarse como desempeño bajo condiciones ideales de simulación, no como garantía directa de operación física real. La disponibilidad (88.18%) es la principal oportunidad de mejora - los 428 s no productivos representan el 11.82% del tiempo planificado.</div>
+      <div style="margin-top:10px;padding:8px 12px;background:rgba(245,200,66,0.07);border-left:2px solid rgba(245,200,66,0.4);border-radius:0 3px 3px 0;">
+        <span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--gold);text-transform:uppercase;letter-spacing:0.08em;">⚠ Nota simulación -</span>
+        <span style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text2);"> Este OEE elevado es probable consecuencia del entorno simulado: ausencia de fallos mecánicos reales, tiempos de ciclo deterministas y condiciones ideales de operación. En producción real se esperaría un OEE entre 65–80%.</span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+      <div style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text3)">UMBRAL CLASE MUNDIAL</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:700;color:var(--text2)">≥ 85%</div>
+      <div style="font-family:'Fira Code',monospace;font-size:10px;color:var(--lime)">▲ +1.80 pp sobre umbral</div>
+    </div>
+  </div>
+
+  <!-- Row 1: Gauge + Funnel -->
+  <div style="display:grid;grid-template-columns:1fr 1.6fr;gap:20px;margin-bottom:20px;">
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0;">Gauge OEE</div>
+        <div id="live-badge" style="display:flex;align-items:center;gap:4px;font-family:'Fira Code',monospace;font-size:9px;color:#a3e635;border:1px solid rgba(163,230,53,0.35);border-radius:2px;padding:2px 6px;letter-spacing:0.1em;">
+          <span id="live-dot" style="width:5px;height:5px;border-radius:50%;background:#a3e635;display:inline-block;animation:livePulse 1s ease-in-out infinite;"></span>
+          LIVE
+        </div>
+      </div>
+      <div style="position:relative;width:220px;height:160px;">
+        <canvas id="ch_oee_gauge" style="width:220px;height:160px;"></canvas>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:20px;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:38px;font-weight:800;color:var(--gold);line-height:1;">86.80</div>
+          <div style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text2);margin-top:2px;">% OEE</div>
+        </div>
+      </div>
+      <!-- Mini señal tipo osciloscopio -->
+      <div style="width:100%;margin-top:10px;padding:0 8px;">
+        <canvas id="ch_oee_signal" height="36" style="width:100%;display:block;opacity:0.85;"></canvas>
+      </div>
+      <div style="display:flex;gap:24px;margin-top:10px;">
+        <div style="text-align:center;"><div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--text3);text-transform:uppercase;">Sesión</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--cyan);">60.37 min</div></div>
+        <div style="text-align:center;"><div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--text3);text-transform:uppercase;">Drones</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--gold);">100 ud</div></div>
+        <div style="text-align:center;"><div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--text3);text-transform:uppercase;">Ciclo ideal</div><div style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--lime);">31.44s</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Descomposición OEE - Cascada de Factores</div>
+      <div style="height:200px;"><canvas id="ch_oee_funnel"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Rolling OEE -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">OEE Rolling - Ventanas de 10 Drones (W1–W10) <sup class="ref" title="Nakajima, 1988">[8]</sup></div>
+    <div style="height:220px;"><canvas id="ch_oee_rolling"></canvas></div>
+    <div style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text2);margin-top:12px;padding-top:10px;border-top:1px solid var(--line);">
+      Cada ventana Wn agrupa 10 ciclos consecutivos. La disponibilidad varía entre 87.72%-88.66% (rango 0.94 pp) - el sistema opera con alta consistencia. El rendimiento oscila entre 97.91%-98.96% siguiendo la variabilidad natural del tiempo de ciclo (σ=0.296s).<br><br>
+      <strong style="color:var(--text);">Nota sobre tiempo planificado (3622 s) vs. tiempo de ciclo acumulado (3200 s):</strong> la diferencia de 422 s corresponde al tiempo no productivo registrado durante la sesión - incluyendo esperas entre ciclos, transiciones de herramienta, setup inicial y tiempos de carga/descarga. Este intervalo no forma parte del tiempo de ciclo del dron (32 s/ud) pero si del tiempo planificado total, razón por la cual la Disponibilidad resulta 88.18% y no 100%.
+    </div>
+  </div>
+
+  <!-- Row 3: Loss Analysis + Benchmark -->
+  <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px;margin-bottom:20px;">
+    <div class="card">
+      <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Análisis de Pérdidas - Tiempo Planificado 3622s <sup class="ref" title="Nakajima, 1988; ISO 22400-2:2014">[8,10]</sup></div>
+      <div style="height:120px;"><canvas id="ch_oee_loss"></canvas></div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;">
+        <div style="padding:12px;background:rgba(251,113,133,0.08);border:1px solid rgba(251,113,133,0.2);border-radius:3px;">
+          <div style="font-family:'Fira Code',monospace;font-size:9px;color:#fb7185;text-transform:uppercase;margin-bottom:4px;">Pérdida Disp.</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:#fb7185;font-weight:700;">428s</div>
+          <div style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text2);">11.82% - Setup/idle</div>
+        </div>
+        <div style="padding:12px;background:rgba(163,230,53,0.08);border:1px solid rgba(163,230,53,0.2);border-radius:3px;">
+          <div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--lime);text-transform:uppercase;margin-bottom:4px;">Pérdida Veloc.</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--lime);font-weight:700;">50s</div>
+          <div style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text2);">1.38% - Ciclo lento</div>
+        </div>
+        <div style="padding:12px;background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);border-radius:3px;">
+          <div style="font-family:'Fira Code',monospace;font-size:9px;color:var(--violet);text-transform:uppercase;margin-bottom:4px;">Pérdida Cal.</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;color:var(--violet);font-weight:700;">0s</div>
+          <div style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text2);">0.00% - Sin rechazos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Benchmark - Industria / Clase Mundial <sup class="ref" title="Hansen, 2001; Vorne Industries, 2020">[9,11]</sup></div>
+      <div style="height:260px;"><canvas id="ch_oee_bench"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Interpretive table -->
+  <div class="card" style="border-color:rgba(245,200,66,0.15);">
+    <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Tabla Interpretativa - Diagnóstico OEE <sup class="ref" title="Hansen, 2001">[9]</sup></div>
+    <table style="width:100%;border-collapse:collapse;font-family:'Fira Code',monospace;font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--line2);">
+          <th style="text-align:left;padding:8px 12px;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">Métrica</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">Valor</th>
+          <th style="text-align:right;padding:8px 12px;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">Benchmark</th>
+          <th style="text-align:left;padding:8px 12px;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;">Diagnóstico</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:9px 12px;color:var(--cyan);">Disponibilidad</td>
+          <td style="padding:9px 12px;text-align:right;color:#fff;">88.18%</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--text2);">≥90%</td>
+          <td style="padding:9px 12px;color:#fb7185;">↑ Optimizable - reducir tiempos de transición y setup entre ciclos</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:9px 12px;color:var(--lime);">Rendimiento</td>
+          <td style="padding:9px 12px;text-align:right;color:#fff;">98.43%</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--text2);">≥95%</td>
+          <td style="padding:9px 12px;color:var(--lime);">✓ Excelente - velocidad casi óptima, σ=0.296s muy bajo</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:9px 12px;color:var(--violet);">Calidad</td>
+          <td style="padding:9px 12px;text-align:right;color:#fff;">100.00%</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--text2);">≥99%</td>
+          <td style="padding:9px 12px;color:var(--lime);">✓ Perfecto - cero rechazos ni retrabajos en 100 unidades</td>
+        </tr>
+        <tr style="border-bottom:1px solid var(--line);">
+          <td style="padding:9px 12px;color:var(--gold);font-weight:600;">OEE Global</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--gold);font-weight:600;">86.80%</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--text2);">≥85%</td>
+          <td style="padding:9px 12px;color:var(--lime);">✓ Clase Mundial - supera umbral en +1.80 pp</td>
+        </tr>
+        <tr>
+          <td style="padding:9px 12px;color:var(--text2);">Principal pérdida</td>
+          <td style="padding:9px 12px;text-align:right;color:#fb7185;">428s</td>
+          <td style="padding:9px 12px;text-align:right;color:var(--text2);">&lt;10%</td>
+          <td style="padding:9px 12px;color:var(--text2);">Disponibilidad - idle entre fin de ciclo e inicio de siguiente brazo</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- ── SECCIÓN 7: SIMULACIÓN DE FALLOS ── -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="fallos">
+  <div class="sec-head">
+    <span class="sec-num">08</span>
+    <h2>Simulación de Fallos y Alteraciones del Proceso</h2>
+    <span class="sec-desc">Análisis de escenarios críticos</span>
+  </div>
+
+  <div class="card" style="border-color:rgba(251,113,133,0.2);background:linear-gradient(135deg,rgba(251,113,133,0.03),transparent);margin-bottom:24px;">
+    <div style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text2);">
+      <span style="color:var(--rose);text-transform:uppercase;letter-spacing:0.08em;">Metodología -</span>
+      Los siguientes escenarios proyectan el impacto en OEE si se introdujeran fallos reales en el sistema. Se mantiene la base de 100 drones, 3622s planificados y ciclo ideal de 31.44s. Cada escenario modifica uno o más factores (Disponibilidad, Rendimiento, Calidad) calculando el nuevo OEE resultante y la pérdida productiva en unidades y tiempo.
+    </div>
+  </div>
+
+  <!-- Selector de escenario -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;" id="scenario-btns">
+    <button onclick="setScenario(0)" class="sc-btn active" data-i="0">Baseline (real)</button>
+    <button onclick="setScenario(1)" class="sc-btn" data-i="1">Fallo brazo Alpha</button>
+    <button onclick="setScenario(2)" class="sc-btn" data-i="2">Degradación neumática</button>
+    <button onclick="setScenario(3)" class="sc-btn" data-i="3">Pérdida comunicación TCP</button>
+    <button onclick="setScenario(4)" class="sc-btn" data-i="4">Fallo sensor succión</button>
+    <button onclick="setScenario(5)" class="sc-btn" data-i="5">Escenario catastrófico</button>
+  </div>
+
+  <style>
+    .sc-btn{
+      font-family:'Fira Code',monospace;font-size:11px;padding:8px 16px;
+      border:1px solid var(--line2);background:var(--bg2);color:var(--text2);
+      border-radius:3px;cursor:pointer;transition:all 0.2s;letter-spacing:0.04em;
+    }
+    .sc-btn:hover{border-color:rgba(245,200,66,0.4);color:var(--gold);}
+    .sc-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(245,200,66,0.08);}
+    .sc-btn[data-i="1"].active{border-color:var(--rose);color:var(--rose);background:rgba(251,113,133,0.08);}
+    .sc-btn[data-i="2"].active{border-color:var(--cyan);color:var(--cyan);background:rgba(56,189,248,0.08);}
+    .sc-btn[data-i="3"].active{border-color:var(--violet);color:var(--violet);background:rgba(167,139,250,0.08);}
+    .sc-btn[data-i="4"].active{border-color:var(--lime);color:var(--lime);background:rgba(163,230,53,0.08);}
+    .sc-btn[data-i="5"].active{border-color:#f97316;color:#f97316;background:rgba(249,115,22,0.08);}
+  </style>
+
+  <!-- Scenario KPIs -->
+  <div id="sc-kpis" style="display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:4px;overflow:hidden;margin-bottom:20px;">
+    <div class="stat-block"><div class="sb-label">Disponibilidad <sup class="ref" title="Nakajima, 1988">[8]</sup></div><div class="sb-val" id="sc-avail">88.18%</div><div class="sb-sub" id="sc-avail-sub">baseline</div></div>
+    <div class="stat-block"><div class="sb-label">Rendimiento <sup class="ref" title="Nakajima, 1988">[8]</sup></div><div class="sb-val" id="sc-perf">98.43%</div><div class="sb-sub" id="sc-perf-sub">baseline</div></div>
+    <div class="stat-block"><div class="sb-label">Calidad <sup class="ref" title="Nakajima, 1988">[8]</sup></div><div class="sb-val" id="sc-qual">100.00%</div><div class="sb-sub" id="sc-qual-sub">baseline</div></div>
+    <div class="stat-block" style="border-left:2px solid var(--rose)"><div class="sb-label">OEE Simulado</div><div class="sb-val rose" id="sc-oee">86.80%</div><div class="sb-sub" id="sc-oee-sub">sin cambio</div></div>
+    <div class="stat-block"><div class="sb-label">Drones Perdidos</div><div class="sb-val" id="sc-lost" style="color:var(--rose)">0</div><div class="sb-sub" id="sc-lost-sub">0 unidades</div></div>
+  </div>
+
+  <!-- Scenario description -->
+  <div class="card" id="sc-desc-card" style="margin-bottom:20px;border-color:rgba(251,113,133,0.15);">
+    <div style="display:flex;align-items:flex-start;gap:20px;">
+      <div style="font-size:32px;line-height:1;" id="sc-icon">✅</div>
+      <div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.04em;" id="sc-title">Baseline - Condición Real de Simulación</div>
+        <div style="font-family:'Fira Code',monospace;font-size:12px;color:var(--text2);margin-top:8px;line-height:1.7;" id="sc-desc">Estado actual del sistema sin fallos introducidos. OEE 86.80% corresponde a la sesión real registrada el 2026-04-28. La disponibilidad del 88.18% refleja tiempos de transición entre ciclos propios de la simulación Unity - en un sistema real estos incluirían además tiempos de mantenimiento preventivo, cambios de herramienta y paradas no planificadas.</div>
+        <div style="margin-top:12px;display:flex;gap:24px;" id="sc-metrics">
+          <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Tiempo perdido</span><br><span style="font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--rose);">478s</span></div>
+          <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Causa principal</span><br><span style="font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--text2);">Transición entre ciclos</span></div>
+          <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Impacto</span><br><span style="font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--lime);">Mínimo</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+    <div class="card">
+      <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">OEE por Escenario - Comparativa</div>
+      <div style="height:220px;"><canvas id="ch_sc_compare"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Tiempo de Ciclo Simulado - Escenario Activo</div>
+      <div style="height:220px;"><canvas id="ch_sc_cycle"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Impact table -->
+  <div class="card">
+    <div class="card-title" style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;">Tabla de Impacto - Todos los Escenarios</div>
+    <table style="width:100%;border-collapse:collapse;font-family:'Fira Code',monospace;font-size:11px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--line2);">
+          <th style="text-align:left;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;letter-spacing:0.08em;">Escenario</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">Disp.</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">Rend.</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">Cal.</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">OEE</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">Δ OEE</th>
+          <th style="text-align:right;padding:8px 10px;color:var(--gold);font-size:10px;text-transform:uppercase;">Drones perdidos</th>
+        </tr>
+      </thead>
+      <tbody id="sc-table-body">
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</main>
+
+<!-- ══════════════════════════════════════════════════════
+     REFERENCIAS BIBLIOGRÁFICAS
+══════════════════════════════════════════════════════ -->
+<div class="ref-section">
+  <div class="ref-section-head">
+    <span class="sec-num">REF</span>
+    <h2 style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:0.02em;">Referencias Bibliográficas</h2>
+    <span style="font-family:'Fira Code',monospace;font-size:11px;color:var(--text3);margin-left:auto;">fuentes por sección · estadística · SPC · OEE</span>
+  </div>
+
+  <div class="ref-list">
+
+    <div class="ref-item">
+      <div class="ref-num">[1]</div>
+      <div>
+        Montgomery, D.C. &amp; Runger, G.C. (2014).
+        <em>Applied Statistics and Probability for Engineers</em> (6.ª ed.).
+        Hoboken, NJ: John Wiley &amp; Sons.
+        <span class="ref-badge">Secciones 01 · 04</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Media, varianza, CV, asimetría, curtosis, regresión lineal, IC 95%</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[2]</div>
+      <div>
+        Walpole, R.E., Myers, R.H. &amp; Myers, S.L. (2012).
+        <em>Probability &amp; Statistics for Engineers and Scientists</em> (9.ª ed.).
+        Upper Saddle River, NJ: Pearson Prentice Hall.
+        <span class="ref-badge">Sección 01</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Error típico (SE), intervalos de confianza, distribuciones de probabilidad</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[3]</div>
+      <div>
+        Tukey, J.W. (1977).
+        <em>Exploratory Data Analysis</em>.
+        Reading, MA: Addison-Wesley.
+        <span class="ref-badge">Secciones 01 · 02</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Diagrama de caja y bigotes (box-plot), IQR, detección de valores atípicos (outliers)</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[4]</div>
+      <div>
+        Pearson, K. (1895). Note on regression and inheritance in the case of two parents.
+        <em>Proceedings of the Royal Society of London</em>, 58, 240–242.
+        <span class="ref-badge">Sección 04</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Coeficiente de correlación de Pearson (r); base teórica de la correlación cruzada entre brazos</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[5]</div>
+      <div>
+        Box, G.E.P., Jenkins, G.M., Reinsel, G.C. &amp; Ljung, G.M. (2015).
+        <em>Time Series Analysis: Forecasting and Control</em> (5.ª ed.).
+        Hoboken, NJ: John Wiley &amp; Sons.
+        <span class="ref-badge">Sección 04</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Función de autocorrelación (ACF), independencia de series temporales, análisis de drift</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[6]</div>
+      <div>
+        Shewhart, W.A. (1931).
+        <em>Economic Control of Quality of Manufactured Product</em>.
+        New York: Van Nostrand. (Reimpresión: Milwaukee, WI: ASQC Quality Press, 1980).
+        <span class="ref-badge">Sección 05</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Fundamento de las cartas de control, regla 3σ (UCL/LCL), concepto de proceso bajo control estadístico</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[7]</div>
+      <div>
+        Montgomery, D.C. (2009).
+        <em>Introduction to Statistical Quality Control</em> (6.ª ed.).
+        Hoboken, NJ: John Wiley &amp; Sons.
+        <span class="ref-badge">Sección 05</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Carta X̄, UCL/LCL a ±3σ, zona de alerta a ±2σ, capacidad de proceso (Cp, Cpk), SPC moderno</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[8]</div>
+      <div>
+        Nakajima, S. (1988).
+        <em>Introduction to TPM: Total Productive Maintenance</em>.
+        Cambridge, MA: Productivity Press.
+        <span class="ref-badge">Sección OEE · Escenarios</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Definición original del OEE (Disponibilidad × Rendimiento × Calidad), seis grandes pérdidas, TPM</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[9]</div>
+      <div>
+        Hansen, R.C. (2001).
+        <em>Overall Equipment Effectiveness: A Powerful Production/Maintenance Tool for Increased Profits</em>.
+        New York: Industrial Press.
+        <span class="ref-badge">Sección OEE</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Umbral de clase mundial OEE ≥ 85%; benchmarks industriales por sector; análisis de pérdidas</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[10]</div>
+      <div>
+        ISO 22400-2:2014.
+        <em>Automation Systems and Integration - Key Performance Indicators (KPIs) for Manufacturing Operations Management - Part 2: Definitions and Descriptions</em>.
+        Geneva: International Organization for Standardization.
+        <span class="ref-badge">Sección OEE</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Definición normativa estandarizada del OEE; desglose en disponibilidad, rendimiento y calidad (KPI industrial)</span>
+      </div>
+    </div>
+
+    <div class="ref-item">
+      <div class="ref-num">[11]</div>
+      <div>
+        Vorne Industries. (2020).
+        <em>The Fast Guide to OEE</em> (3.ª ed.).
+        Itasca, IL: Vorne Industries.
+        Disponible en: <strong style="color:var(--cyan)">https://www.vorne.com/oee-guide</strong>
+        <span class="ref-badge">Sección OEE</span><br>
+        <span style="color:var(--text3);font-size:10px;">→ Benchmarks industriales de OEE por sector; categorización tipificada (≤65% inaceptable, 65–75% aceptable, ≥85% clase mundial)</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:24px;padding:14px 20px;background:var(--bg3);border:1px solid var(--line);border-left:3px solid var(--gold2);border-radius:0 4px 4px 0;font-family:'Fira Code',monospace;font-size:11px;color:var(--text2);line-height:1.8;">
+    <span style="color:var(--gold);text-transform:uppercase;letter-spacing:0.1em;font-size:10px;">Nota metodológica - </span>
+    Los datos estadísticos presentados en este informe son el resultado de una <strong style="color:var(--text)">simulación computacional</strong> (archivo CSV generado en entorno Unity). Los valores numéricos reflejan el comportamiento modelado de un sistema multi-brazo robótico. Las fórmulas estadísticas aplicadas siguen la convención poblacional (denominador n) conforme a las referencias [1] y [2]. Las métricas OEE se calculan siguiendo el modelo de tres factores definido en [8] y normalizado en [10].
+  </div>
+</div>
+
+<footer>
+  <div class="ft">Análisis estadístico · Sistema Multi-Brazo Colaborativo · Simulación · 2026-04-28</div>
+  <div class="ft">n_total = 100 ciclos · 4 brazos · 1,001 registros</div>
+</footer>
+
+<script>
+Chart.register(ChartDataLabels);
+
+const CG='#f5c842', CB='#38bdf8', CO='#fb7185', CP='#a78bfa', CLime='#a3e635';
+const gridC='rgba(255,255,255,0.04)';
+const tickC='#4b5563';
+const base={responsive:true,maintainAspectRatio:false};
+const noLbl={plugins:{datalabels:{display:false}}};
+const dlTop=(fmt)=>({display:true,color:'#d4d8e8',font:{family:"'Fira Code',monospace",size:10,weight:'500'},anchor:'end',align:'end',formatter:fmt,clamp:true});
+
+// ── S1: Histograma ciclo ──
+const drones=[32.87,32.45,31.96,31.99,31.68,31.79,32.14,31.85,32.18,32.20,32.30,32.26,32.17,32.08,32.01,31.73,31.76,31.96,32.28,31.85,32.60,31.72,31.83,31.89,32.60,32.25,32.13,32.32,31.87,31.93,31.58,31.91,32.48,32.04,31.62,31.75,32.15,31.67,31.44,32.16,31.80,31.84,32.10,31.65,31.82,32.14,32.16,32.29,32.63,31.71,31.99,32.66,31.94,32.17,32.26,31.62,31.81,32.04,31.76,32.20,31.58,32.29,32.00,31.95,31.78,31.95,31.70,31.49,31.93,32.06,32.11,32.42,31.71,32.01,32.08,32.13,31.94,32.10,31.62,31.85,32.48,31.81,32.03,31.63,32.38,32.22,31.82,31.63,31.83,31.85,32.22,31.69,32.75,32.11,32.07,31.69,31.94,31.56,31.50,32.01];
+
+const edges=[31.3,31.5,31.7,31.9,32.1,32.3,32.5,32.7,33.0];
+const bins=Array(8).fill(0);
+drones.forEach(d=>{for(let i=0;i<8;i++){if(d>=edges[i]&&d<edges[i+1]){bins[i]++;break;}}});
+const bLabels=['31.3–31.5','31.5–31.7','31.7–31.9','31.9–32.1','32.1–32.3','32.3–32.5','32.5–32.7','32.7–33.0'];
+
+new Chart(document.getElementById('ch_hist').getContext('2d'),{
+  type:'bar',data:{labels:bLabels,datasets:[{label:'Frecuencia',data:bins,backgroundColor:CG+'55',borderColor:CG,borderWidth:1.5,borderRadius:2}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v>0?v:'')},
+    scales:{x:{ticks:{color:tickC,font:{size:10},maxRotation:40},grid:{color:gridC}},y:{beginAtZero:true,max:40,ticks:{color:tickC},grid:{color:gridC}}}}
+});
+
+// ── S1: Box-plot como barchart simulado ──
+new Chart(document.getElementById('ch_box').getContext('2d'),{
+  type:'bar',
+  data:{
+    labels:['Ciclo (s)'],
+    datasets:[
+      {label:'Min→Q1',data:[31.44],backgroundColor:'transparent',borderWidth:0},
+      {label:'Q1→Mediana',data:[0.23],backgroundColor:CG+'44',borderColor:CG,borderWidth:1.5,borderRadius:0},
+      {label:'Mediana→Q3',data:[0.25],backgroundColor:CG+'88',borderColor:CG,borderWidth:1.5,borderRadius:0},
+      {label:'Q3→Max',data:[0.65],backgroundColor:'transparent',borderWidth:0}
+    ]
+  },
+  options:{...base,indexAxis:'y',
+    plugins:{legend:{display:false},datalabels:{display:false},
+      tooltip:{callbacks:{label:(c)=>{const l=['Mín: 31.44','Q1: 31.74','Q3: 32.22','Máx: 32.87'][c.datasetIndex];return l;}}}},
+    scales:{
+      x:{min:31.2,max:33.1,stacked:true,ticks:{color:tickC,callback:v=>v.toFixed(1)+'s'},grid:{color:gridC}},
+      y:{stacked:true,ticks:{color:tickC}}
+    }}
+});
+
+// ── S1: Serie temporal ──
+const n=drones.length;
+const mu=32.00, sigma=0.298;
+const ma5=drones.map((_,i)=>{ const sl=drones.slice(Math.max(0,i-2),i+3); return +(sl.reduce((a,b)=>a+b,0)/sl.length).toFixed(3);});
+new Chart(document.getElementById('ch_serie').getContext('2d'),{
+  type:'line',
+  data:{labels:Array.from({length:100},(_,i)=>i+1),datasets:[
+    {label:'Datos',data:drones,borderColor:CG,backgroundColor:'transparent',borderWidth:1,pointRadius:2,pointBackgroundColor:CG,tension:0.2,order:1},
+    {label:'Media móvil n=5',data:ma5,borderColor:'#fff',backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,borderDash:[4,3],tension:0.4,order:0},
+    {label:'μ',data:Array(100).fill(mu),borderColor:'rgba(255,255,255,0.2)',borderWidth:1,pointRadius:0,fill:false,borderDash:[],order:2},
+    {label:'+1σ',data:Array(100).fill(mu+sigma),borderColor:'rgba(56,189,248,0.3)',borderWidth:1,pointRadius:0,fill:false,borderDash:[3,4],order:3},
+    {label:'-1σ',data:Array(100).fill(mu-sigma),borderColor:'rgba(56,189,248,0.3)',borderWidth:1,pointRadius:0,fill:'-1',backgroundColor:'rgba(56,189,248,0.04)',borderDash:[3,4],order:4},
+    {label:'+2σ',data:Array(100).fill(mu+2*sigma),borderColor:'rgba(251,113,133,0.3)',borderWidth:1,pointRadius:0,fill:false,borderDash:[2,5],order:5},
+    {label:'-2σ',data:Array(100).fill(mu-2*sigma),borderColor:'rgba(251,113,133,0.3)',borderWidth:1,pointRadius:0,fill:false,borderDash:[2,5],order:6}
+  ]},
+  options:{...base,...noLbl,
+    scales:{x:{ticks:{color:tickC,maxTicksLimit:10},grid:{color:gridC}},
+            y:{min:31.0,max:33.4,ticks:{color:tickC,callback:v=>v.toFixed(1)+'s'},grid:{color:gridC}}}}
+});
+
+// ── S2: Medias ──
+const brazoN=['Alpha','Beta','Omega','Paletizador'];
+const medias=[25.27,22.91,29.50,5.37];
+const sigmas=[0.230,0.274,0.264,0.618];
+const cvs=[0.91,1.20,0.89,11.5];
+const bColors=[CG,CB,CO,CP];
+
+new Chart(document.getElementById('ch_medias').getContext('2d'),{
+  type:'bar',data:{labels:brazoN,datasets:[{data:medias,backgroundColor:bColors.map(c=>c+'88'),borderColor:bColors,borderWidth:1.5,borderRadius:3}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v.toFixed(2)+'s')},
+    scales:{x:{ticks:{color:tickC},grid:{color:gridC}},y:{beginAtZero:true,max:36,ticks:{color:tickC,callback:v=>v+'s'},grid:{color:gridC}}}}
+});
+
+new Chart(document.getElementById('ch_sigma').getContext('2d'),{
+  type:'bar',data:{labels:brazoN,datasets:[{data:sigmas,backgroundColor:bColors.map(c=>c+'88'),borderColor:bColors,borderWidth:1.5,borderRadius:3}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v.toFixed(3)+'s')},
+    scales:{x:{ticks:{color:tickC},grid:{color:gridC}},y:{beginAtZero:true,max:0.85,ticks:{color:tickC,callback:v=>v+'s'},grid:{color:gridC}}}}
+});
+
+new Chart(document.getElementById('ch_cv').getContext('2d'),{
+  type:'bar',data:{labels:brazoN,datasets:[{data:cvs,backgroundColor:bColors.map(c=>c+'88'),borderColor:bColors,borderWidth:1.5,borderRadius:3}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v.toFixed(2)+'%')},
+    scales:{x:{ticks:{color:tickC},grid:{color:gridC}},y:{beginAtZero:true,max:14,ticks:{color:tickC,callback:v=>v+'%'},grid:{color:gridC}}}}
+});
+
+// ── S2: Box-plots todos los brazos ──
+const brazoData={
+  Alpha:[24.73,24.78,24.79,24.80,24.85,24.87,24.87,24.87,24.88,24.90,24.92,24.92,24.94,24.94,24.96,24.97,24.98,24.98,25.00,25.01,25.04,25.04,25.04,25.05,25.05,25.05,25.05,25.06,25.07,25.08,25.10,25.13,25.13,25.15,25.17,25.18,25.18,25.19,25.19,25.19,25.21,25.21,25.21,25.23,25.23,25.24,25.24,25.27,25.27,25.28,25.28,25.29,25.29,25.32,25.33,25.34,25.34,25.34,25.34,25.35,25.35,25.36,25.38,25.39,25.39,25.40,25.40,25.41,25.41,25.41,25.42,25.43,25.44,25.44,25.45,25.45,25.46,25.48,25.49,25.50,25.52,25.56,25.57,25.60,25.60,25.64,25.64,25.66,25.66,25.69,25.76,25.78,25.87,25.87,25.97,25.97,26.75],
+  Beta:[22.12,22.25,22.28,22.28,22.30,22.39,22.39,22.42,22.44,22.45,22.47,22.47,22.48,22.51,22.54,22.54,22.54,22.54,22.55,22.56,22.57,22.57,22.57,22.58,22.60,22.61,22.61,22.67,22.67,22.68,22.69,22.69,22.69,22.70,22.70,22.70,22.71,22.72,22.73,22.73,22.76,22.77,22.77,22.78,22.78,22.78,22.80,22.80,22.82,22.82,22.84,22.84,22.85,22.86,22.86,22.88,22.88,22.89,22.89,22.90,22.90,22.91,22.92,22.93,22.94,22.94,22.95,22.95,22.96,22.96,22.97,22.98,22.99,22.99,23.00,23.00,23.04,23.04,23.05,23.05,23.06,23.08,23.08,23.09,23.09,23.10,23.12,23.14,23.14,23.15,23.17,23.18,23.19,23.19,23.24,23.26,23.27,23.28,23.29,24.40],
+  Omega:[28.92,29.01,29.01,29.01,29.03,29.03,29.04,29.09,29.10,29.11,29.13,29.16,29.16,29.18,29.21,29.21,29.21,29.23,29.24,29.24,29.25,29.25,29.25,29.26,29.26,29.29,29.29,29.30,29.30,29.33,29.34,29.34,29.35,29.35,29.36,29.36,29.38,29.38,29.39,29.39,29.40,29.40,29.41,29.42,29.43,29.43,29.43,29.44,29.45,29.45,29.48,29.49,29.49,29.49,29.49,29.50,29.51,29.52,29.53,29.54,29.55,29.56,29.57,29.57,29.58,29.60,29.60,29.61,29.62,29.62,29.63,29.64,29.66,29.66,29.67,29.67,29.70,29.73,29.74,29.74,29.76,29.77,29.79,29.81,29.84,29.87,29.92,29.92,29.96,29.99,30.02,30.12,30.14,30.14,30.17,30.20,30.28],
+  Paletizador:[4.38,4.55,4.58,4.58,4.58,4.58,4.58,4.59,4.59,4.59,4.59,4.59,4.59,4.59,4.59,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.60,4.61,4.61,4.61,4.62,4.62,4.63,4.64,4.66,4.68,4.68,4.72,4.91,4.92,4.92,4.93,4.93,4.94,4.94,4.95,4.95,4.95,5.00,5.37,5.68,5.76,5.76,5.97,5.97,5.97,5.97,5.97,5.97,5.97,5.97,5.97,5.98,5.98,5.98,5.98,5.98,5.98,5.99,5.99,5.99,5.99,5.99,6.00,6.00,6.00,6.00,6.01,6.01,6.01,6.01,6.01,6.01,6.02,6.02,6.03,6.03,6.04,6.04,6.04,6.04,6.05,6.06,6.10,6.31,6.31,6.38]
+};
+
+function quartiles(arr){
+  const s=[...arr].sort((a,b)=>a-b);
+  const q=(p)=>{ const idx=(s.length-1)*p; const lo=Math.floor(idx),hi=Math.ceil(idx); return s[lo]+(s[hi]-s[lo])*(idx-lo); };
+  return {min:s[0],q1:q(0.25),med:q(0.5),q3:q(0.75),max:s[s.length-1]};
+}
+const qAlpha=quartiles(brazoData.Alpha);
+const qBeta=quartiles(brazoData.Beta);
+const qOmega=quartiles(brazoData.Omega);
+const qPalet=quartiles(brazoData.Paletizador);
+
+// Simulate box-plot with stacked bar horizontal
+new Chart(document.getElementById('ch_boxall').getContext('2d'),{
+  type:'bar',
+  data:{
+    labels:['Alpha','Beta','Omega','Paletizador'],
+    datasets:[
+      {label:'min',data:[qAlpha.min,qBeta.min,qOmega.min,qPalet.min],backgroundColor:'transparent',borderWidth:0,stack:'s'},
+      {label:'Q1-Med',data:[qAlpha.med-qAlpha.q1,qBeta.med-qBeta.q1,qOmega.med-qOmega.q1,qPalet.med-qPalet.q1],backgroundColor:[CG+'55',CB+'55',CO+'55',CP+'55'],borderColor:[CG,CB,CO,CP],borderWidth:1.5,stack:'s'},
+      {label:'Med-Q3',data:[qAlpha.q3-qAlpha.med,qBeta.q3-qBeta.med,qOmega.q3-qOmega.med,qPalet.q3-qPalet.med],backgroundColor:[CG+'99',CB+'99',CO+'99',CP+'99'],borderColor:[CG,CB,CO,CP],borderWidth:1.5,stack:'s'},
+      {label:'Q3-Max',data:[qAlpha.max-qAlpha.q3,qBeta.max-qBeta.q3,qOmega.max-qOmega.q3,qPalet.max-qPalet.q3],backgroundColor:'transparent',borderColor:[CG+'44',CB+'44',CO+'44',CP+'44'],borderWidth:1,borderDash:[3,3],stack:'s'}
+    ]
+  },
+  options:{...base,indexAxis:'y',
+    plugins:{legend:{display:false},datalabels:{display:false},
+      tooltip:{callbacks:{title:(i)=>i[0].label,label:(c)=>{
+        const q=[qAlpha,qBeta,qOmega,qPalet][c.dataIndex];
+        return [`Min: ${q.min.toFixed(2)}s`,`Q1: ${q.q1.toFixed(2)}s`,`Med: ${q.med.toFixed(2)}s`,`Q3: ${q.q3.toFixed(2)}s`,`Max: ${q.max.toFixed(2)}s`];
+      }}}},
+    scales:{
+      x:{stacked:true,ticks:{color:tickC,callback:v=>v.toFixed(1)+'s'},grid:{color:gridC}},
+      y:{stacked:true,ticks:{color:tickC}}
+    }}
+});
+
+// ── S3: FDA ──
+const sorted=[...drones].sort((a,b)=>a-b);
+const cdfX=sorted.map((v,i)=>v);
+const cdfY=sorted.map((_,i)=>(i+1)/sorted.length*100);
+new Chart(document.getElementById('ch_cdf').getContext('2d'),{
+  type:'line',data:{labels:cdfX.map(v=>v.toFixed(2)),datasets:[{label:'FDA',data:cdfY,borderColor:CG,backgroundColor:CG+'18',borderWidth:2,pointRadius:0,fill:true,tension:0.1}]},
+  options:{...base,...noLbl,
+    scales:{x:{ticks:{color:tickC,maxTicksLimit:8,callback:v=>v+'s'},grid:{color:gridC}},y:{min:0,max:100,ticks:{color:tickC,callback:v=>v+'%'},grid:{color:gridC}}}}
+});
+
+// ── S3: Percentiles por brazo ──
+const pcts={Alpha:{p5:24.80,p95:25.66},Beta:{p5:22.39,p95:23.29},Omega:{p5:29.04,p95:29.92},Paletizador:{p5:4.59,p95:6.04}};
+new Chart(document.getElementById('ch_pct').getContext('2d'),{
+  type:'bar',
+  data:{labels:brazoN,datasets:[
+    {label:'P5',data:[pcts.Alpha.p5,pcts.Beta.p5,pcts.Omega.p5,pcts.Paletizador.p5],backgroundColor:'transparent',borderWidth:0,stack:'s'},
+    {label:'P5→P95',data:[pcts.Alpha.p95-pcts.Alpha.p5,pcts.Beta.p95-pcts.Beta.p5,pcts.Omega.p95-pcts.Omega.p5,pcts.Paletizador.p95-pcts.Paletizador.p5],backgroundColor:bColors.map(c=>c+'77'),borderColor:bColors,borderWidth:1.5,borderRadius:3,stack:'s'}
+  ]},
+  options:{...base,
+    plugins:{legend:{display:false},datalabels:{display:true,color:'#d4d8e8',font:{family:"'Fira Code',monospace",size:10},formatter:(v,c)=>c.datasetIndex===1?v.toFixed(2)+'s':null,anchor:'center',align:'center'}},
+    scales:{x:{stacked:true,ticks:{color:tickC},grid:{color:gridC}},y:{stacked:true,ticks:{color:tickC,callback:v=>v+'s'},grid:{color:gridC}}}}
+});
+
+// ── S4: Regresión ──
+const xReg=Array.from({length:100},(_,i)=>i+1);
+const yReg=xReg.map(x=>32.14-0.0027*x);
+new Chart(document.getElementById('ch_reg').getContext('2d'),{
+  type:'scatter',
+  data:{datasets:[
+    {label:'Ciclos',data:drones.map((y,i)=>({x:i+1,y})),borderColor:CG+'88',backgroundColor:CG+'55',pointRadius:3,pointBackgroundColor:CG+'88',showLine:false},
+    {label:'Regresión',data:yReg.map((y,i)=>({x:i+1,y})),borderColor:CO,backgroundColor:'transparent',borderWidth:1.5,pointRadius:0,showLine:true,tension:0}
+  ]},
+  options:{...base,...noLbl,
+    scales:{x:{min:0,max:101,ticks:{color:tickC},grid:{color:gridC}},y:{min:31.0,max:33.2,ticks:{color:tickC,callback:v=>v.toFixed(1)+'s'},grid:{color:gridC}}}}
+});
+
+// ── S4: ACF ──
+const acf=[];
+const dronMu=drones.reduce((a,b)=>a+b,0)/drones.length;
+const dronVar=drones.reduce((a,b)=>a+(b-dronMu)**2,0)/drones.length;
+for(let lag=0;lag<=15;lag++){
+  let cov=0;
+  for(let i=0;i<drones.length-lag;i++) cov+=(drones[i]-dronMu)*(drones[i+lag]-dronMu);
+  acf.push(+(cov/(drones.length*dronVar)).toFixed(3));
+}
+new Chart(document.getElementById('ch_acf').getContext('2d'),{
+  type:'bar',data:{labels:Array.from({length:16},(_,i)=>i),datasets:[
+    {label:'ACF',data:acf,backgroundColor:acf.map(v=>Math.abs(v)>0.196?CO+'cc':CG+'66'),borderColor:acf.map(v=>Math.abs(v)>0.196?CO:CG),borderWidth:1.5,borderRadius:2},
+    {label:'+95%',data:Array(16).fill(0.196),borderColor:'rgba(251,113,133,0.5)',borderWidth:1,borderDash:[4,3],type:'line',pointRadius:0,fill:false},
+    {label:'-95%',data:Array(16).fill(-0.196),borderColor:'rgba(251,113,133,0.5)',borderWidth:1,borderDash:[4,3],type:'line',pointRadius:0,fill:false}
+  ]},
+  options:{...base,plugins:{legend:{display:false},datalabels:{display:true,color:'#6b7280',font:{size:9},formatter:v=>v.toFixed(2),anchor:'end',align:v=>v>=0?'end':'start'}},
+    scales:{x:{ticks:{color:tickC},grid:{color:gridC}},y:{min:-0.4,max:0.5,ticks:{color:tickC},grid:{color:gridC}}}}
+});
+
+// ── S5: SPC ──
+const ucl3=32.894,lcl3=31.106,ucl2=32.596,lcl2=31.404;
+new Chart(document.getElementById('ch_spc').getContext('2d'),{
+  type:'line',data:{labels:xReg,datasets:[
+    {label:'Ciclos',data:drones,borderColor:CG,backgroundColor:'transparent',borderWidth:1,pointRadius:3,pointBackgroundColor:drones.map(v=>v>ucl2||v<lcl2?CO:CG),tension:0},
+    {label:'UCL 3σ',data:Array(100).fill(ucl3),borderColor:CO,borderWidth:1.5,borderDash:[],pointRadius:0,fill:false},
+    {label:'LCL 3σ',data:Array(100).fill(lcl3),borderColor:CO,borderWidth:1.5,borderDash:[],pointRadius:0,fill:false},
+    {label:'UCL 2σ',data:Array(100).fill(ucl2),borderColor:'rgba(251,113,133,0.4)',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false},
+    {label:'LCL 2σ',data:Array(100).fill(lcl2),borderColor:'rgba(251,113,133,0.4)',borderWidth:1,borderDash:[5,4],pointRadius:0,fill:false},
+    {label:'μ',data:Array(100).fill(32.00),borderColor:'rgba(255,255,255,0.25)',borderWidth:1,pointRadius:0,fill:false}
+  ]},
+  options:{...base,...noLbl,
+    scales:{x:{ticks:{color:tickC,maxTicksLimit:10},grid:{color:gridC}},y:{min:30.8,max:33.2,ticks:{color:tickC,callback:v=>v.toFixed(1)+'s'},grid:{color:gridC}}}}
+});
+
+// ── S5: Bimodalidad Paletizador ──
+const pBins=[0,0,0,0,0,0,0,0,0,0];
+const pEdges=[4.3,4.5,4.7,4.9,5.1,5.3,5.5,5.7,5.9,6.1,6.5];
+brazoData.Paletizador.forEach(d=>{for(let i=0;i<10;i++){if(d>=pEdges[i]&&d<pEdges[i+1]){pBins[i]++;break;}}});
+new Chart(document.getElementById('ch_bimod').getContext('2d'),{
+  type:'bar',data:{labels:['4.3–4.5','4.5–4.7','4.7–4.9','4.9–5.1','5.1–5.3','5.3–5.5','5.5–5.7','5.7–5.9','5.9–6.1','6.1–6.5'],
+    datasets:[{data:pBins,backgroundColor:CP+'77',borderColor:CP,borderWidth:1.5,borderRadius:2}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v>0?v:'')},
+    scales:{x:{ticks:{color:tickC,font:{size:9},maxRotation:40},grid:{color:gridC}},y:{beginAtZero:true,ticks:{color:tickC},grid:{color:gridC}}}}
+});
+
+// ── S5: Precisión relativa ──
+const prec=[0.91,1.20,0.89,11.5];
+new Chart(document.getElementById('ch_prec').getContext('2d'),{
+  type:'bar',data:{labels:brazoN,datasets:[{data:prec,backgroundColor:bColors.map(c=>c+'77'),borderColor:bColors,borderWidth:1.5,borderRadius:3}]},
+  options:{...base,plugins:{legend:{display:false},datalabels:dlTop(v=>v.toFixed(2)+'%')},
+    scales:{x:{ticks:{color:tickC},grid:{color:gridC}},y:{beginAtZero:true,max:14,ticks:{color:tickC,callback:v=>v+'%'},grid:{color:gridC}}}}
+});
+
+// ═══════════════════════════════════════════════════════════
+// ── SECCIÓN 6: OEE - OVERALL EQUIPMENT EFFECTIVENESS ──
+// ═══════════════════════════════════════════════════════════
+
+// OEE data
+const oeeAvail = 88.18;
+const oeePerf  = 98.43;
+const oeeQual  = 100.00;
+const oeeTotal = 86.80;
+
+const oeeWindows = [
+  {w:'W1',avail:88.66,perf:97.91,oee:86.80},
+  {w:'W2',avail:88.17,perf:98.45,oee:86.80},
+  {w:'W3',avail:88.05,perf:98.58,oee:86.80},
+  {w:'W4',avail:87.92,perf:98.73,oee:86.80},
+  {w:'W5',avail:88.46,perf:98.12,oee:86.80},
+  {w:'W6',avail:88.34,perf:98.26,oee:86.80},
+  {w:'W7',avail:87.72,perf:98.96,oee:86.80},
+  {w:'W8',avail:88.59,perf:97.98,oee:86.80},
+  {w:'W9',avail:87.92,perf:98.73,oee:86.80},
+  {w:'W10',avail:87.99,perf:98.65,oee:86.80},
+];
+
+// Loss data (seconds, out of 3622s planned)
+const lossPlanned   = 3622;
+const lossDowntime  = 428;   // 11.82%
+const lossSpeed     = 50;    // 1.38%
+const lossQuality   = 0;     // 0.00%
+const lossValue     = 3144;  // 86.80%
+
+// ── OEE Gauge - STATIC 86.80% ──
+(function buildGauge() {
+  const ctx = document.getElementById('ch_oee_gauge').getContext('2d');
+  const val = oeeTotal;   // 86.80
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [val, 100 - val],
+        backgroundColor: ['#f5c842', '#1c1f2a'],
+        borderWidth: 0,
+        circumference: 270,
+        rotation: 225
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '78%',
+      plugins: { legend: { display: false }, datalabels: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+})();
+
+// ── OEE Waterfall / Funnel bar ──
+new Chart(document.getElementById('ch_oee_funnel').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: ['Disponibilidad', 'Rendimiento', 'Calidad', 'OEE Final'],
+    datasets: [{
+      data: [oeeAvail, oeePerf, oeeQual, oeeTotal],
+      backgroundColor: ['#38bdf877','#a3e63577','#a78bfa77','#f5c84299'],
+      borderColor:     ['#38bdf8',  '#a3e635',  '#a78bfa',  '#f5c842'],
+      borderWidth: 1.5,
+      borderRadius: 3
+    }]
+  },
+  options: {
+    ...base,
+    plugins: {
+      legend: { display: false },
+      datalabels: {
+        display: true,
+        color: '#fff',
+        font: { family: "'Fira Code',monospace", size: 13, weight: '600' },
+        formatter: v => v.toFixed(2) + '%',
+        anchor: 'end', align: 'end',
+        offset: 4
+      }
+    },
+    scales: {
+      x: { ticks: { color: tickC, font: { size: 12 } }, grid: { color: gridC } },
+      y: { min: 80, max: 102, ticks: { color: tickC, callback: v => v + '%' }, grid: { color: gridC } }
+    }
+  }
+});
+
+// ── OEE Rolling por ventana de 10 drones ──
+new Chart(document.getElementById('ch_oee_rolling').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: oeeWindows.map(w => w.w),
+    datasets: [
+      {
+        label: 'Disponibilidad',
+        data: oeeWindows.map(w => w.avail),
+        borderColor: '#38bdf8', backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#38bdf8', tension: 0.3
+      },
+      {
+        label: 'Rendimiento',
+        data: oeeWindows.map(w => w.perf),
+        borderColor: '#a3e635', backgroundColor: 'transparent',
+        borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#a3e635', tension: 0.3
+      },
+      {
+        label: 'OEE',
+        data: oeeWindows.map(w => w.oee),
+        borderColor: '#f5c842', backgroundColor: '#f5c84218',
+        borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#f5c842', tension: 0.3, fill: true
+      }
+    ]
+  },
+  options: {
+    ...base,
+    plugins: {
+      legend: { display: true, position: 'top', labels: { color: tickC, font: { family: "'Fira Code',monospace", size: 10 }, boxWidth: 12 } },
+      datalabels: { display: false }
+    },
+    scales: {
+      x: { ticks: { color: tickC }, grid: { color: gridC } },
+      y: { min: 86, max: 101, ticks: { color: tickC, callback: v => v + '%' }, grid: { color: gridC } }
+    }
+  }
+});
+
+// ── OEE Loss Waterfall (stacked bar) ──
+new Chart(document.getElementById('ch_oee_loss').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: ['Tiempo Planificado'],
+    datasets: [
+      {
+        label: 'Tiempo con Valor Añadido (OEE)',
+        data: [lossValue],
+        backgroundColor: '#f5c84299',
+        borderColor: '#f5c842',
+        borderWidth: 1.5,
+        borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 3, bottomRight: 3 }
+      },
+      {
+        label: 'Pérdida Calidad (0%)',
+        data: [lossQuality],
+        backgroundColor: '#a78bfa77',
+        borderColor: '#a78bfa',
+        borderWidth: 1.5
+      },
+      {
+        label: 'Pérdida Velocidad (1.38%)',
+        data: [lossSpeed],
+        backgroundColor: '#a3e63566',
+        borderColor: '#a3e635',
+        borderWidth: 1.5
+      },
+      {
+        label: 'Pérdida Disponibilidad (11.82%)',
+        data: [lossDowntime],
+        backgroundColor: '#fb718566',
+        borderColor: '#fb7185',
+        borderWidth: 1.5,
+        borderRadius: { topLeft: 3, topRight: 3, bottomLeft: 0, bottomRight: 0 }
+      }
+    ]
+  },
+  options: {
+    ...base,
+    indexAxis: 'y',
+    plugins: {
+      legend: { display: true, position: 'right', labels: { color: tickC, font: { family: "'Fira Code',monospace", size: 10 }, boxWidth: 12 } },
+      datalabels: {
+        display: true,
+        color: '#d4d8e8',
+        font: { family: "'Fira Code',monospace", size: 10 },
+        formatter: (v, c) => v > 0 ? v + 's' : '',
+        anchor: 'center', align: 'center'
+      }
+    },
+    scales: {
+      x: { stacked: true, min: 0, max: 3800, ticks: { color: tickC, callback: v => v + 's' }, grid: { color: gridC } },
+      y: { stacked: true, ticks: { color: tickC } }
+    }
+  }
+});
+
+// ── OEE Benchmark radar ──
+new Chart(document.getElementById('ch_oee_bench').getContext('2d'), {
+  type: 'radar',
+  data: {
+    labels: ['Disponibilidad', 'Rendimiento', 'Calidad', 'OEE Global', 'Estabilidad\nTiempos', 'Repetibilidad'],
+    datasets: [
+      {
+        label: 'Este Sistema',
+        data: [88.18, 98.43, 100, 86.80, 94.4, 97.1],
+        borderColor: '#f5c842',
+        backgroundColor: '#f5c84222',
+        pointBackgroundColor: '#f5c842',
+        borderWidth: 2,
+        pointRadius: 4
+      },
+      {
+        label: 'Benchmark Industria',
+        data: [90, 95, 99, 85, 88, 90],
+        borderColor: '#38bdf866',
+        backgroundColor: '#38bdf811',
+        pointBackgroundColor: '#38bdf8',
+        borderWidth: 1.5,
+        borderDash: [5, 4],
+        pointRadius: 3
+      },
+      {
+        label: 'Clase Mundial (>85%)',
+        data: [95, 95, 99.9, 85, 95, 95],
+        borderColor: '#a3e63544',
+        backgroundColor: 'transparent',
+        pointBackgroundColor: '#a3e635',
+        borderWidth: 1,
+        borderDash: [3, 3],
+        pointRadius: 2
+      }
+    ]
+  },
+  options: {
+    ...base,
+    plugins: {
+      legend: { display: true, position: 'top', labels: { color: tickC, font: { family: "'Fira Code',monospace", size: 10 }, boxWidth: 12 } },
+      datalabels: { display: false }
+    },
+    scales: {
+      r: {
+        min: 80, max: 102,
+        ticks: { color: tickC, backdropColor: 'transparent', font: { size: 9 }, stepSize: 5, callback: v => v + '%' },
+        grid: { color: 'rgba(255,255,255,0.08)' },
+        pointLabels: { color: '#d4d8e8', font: { family: "'Barlow Condensed',sans-serif", size: 12, weight: '600' } },
+        angleLines: { color: 'rgba(255,255,255,0.06)' }
+      }
+    }
+  }
+});
+
+
+
+// ═══════════════════════════════════════════
+// SECCIÓN 7 - SIMULACIÓN DE FALLOS
+// ═══════════════════════════════════════════
+
+const scenarios = [
+  {
+    name: 'Baseline (real)',
+    icon: '✅',
+    title: 'Baseline - Condición Real de Simulación',
+    desc: 'Estado actual del sistema sin fallos introducidos. OEE 86.80% corresponde a la sesión real registrada el 2026-04-28. La disponibilidad del 88.18% refleja tiempos de transición entre ciclos propios de la simulación Unity - en un sistema real estos incluirían además tiempos de mantenimiento preventivo, cambios de herramienta y paradas no planificadas.',
+    avail: 88.18, perf: 98.43, qual: 100.00,
+    timeLost: 478, cause: 'Transición entre ciclos', impact: 'Mínimo', impactColor: 'var(--lime)',
+    color: '#f5c842',
+    cycleMod: x => x, // no modification
+  },
+  {
+    name: 'Fallo brazo Alpha',
+    icon: '🦾',
+    title: 'Fallo Brazo Alpha - Parada No Planificada 8 min',
+    desc: 'El brazo Alpha experimenta un fallo en el controlador de movimiento durante el ciclo 45, requiriendo reinicio del sistema OPC DA y recalibración de posición. La línea se detiene 480s (8 min). Alpha realiza el ensamblaje de la PCB y la base inferior - su parada bloquea completamente la producción. Se pierden ~15 ciclos.',
+    avail: 74.50, perf: 98.43, qual: 100.00,
+    timeLost: 958, cause: 'Parada Alpha 480s + transición', impact: 'Alto', impactColor: 'var(--rose)',
+    color: '#fb7185',
+    cycleMod: (x, i) => i >= 45 && i < 60 ? null : (i >= 60 ? x * 1.02 : x),
+  },
+  {
+    name: 'Degradación neumática',
+    icon: '💨',
+    title: 'Degradación Neumática - Caída de Presión FluidSIM',
+    desc: 'Pérdida gradual de presión en el circuito neumático del Paletizador (simulado en FluidSIM). La presión cae de 6 bar a 3.8 bar entre los ciclos 30–100. El tiempo de ciclo del Paletizador aumenta progresivamente de 5.4s a 9.2s. El rendimiento global cae al 87% por alargamiento de ciclo, sin paradas completas.',
+    avail: 88.18, perf: 87.10, qual: 98.00,
+    timeLost: 600, cause: 'Ciclos lentos + 2 rechazos por presión insuficiente', impact: 'Medio', impactColor: '#f97316',
+    color: '#38bdf8',
+    cycleMod: (x, i) => i < 30 ? x : x + (i - 30) * 0.06,
+  },
+  {
+    name: 'Pérdida comunicación TCP',
+    icon: '📡',
+    title: 'Pérdida de Comunicación TCP/IP - Desconexión CODESYS↔Unity',
+    desc: 'Interrupción del canal TCP entre CODESYS (PLC) y Unity durante 3 minutos (ciclos 60–65). El watchdog detecta la pérdida tras 5s y activa estado SAFE, deteniendo todos los brazos. Al reconectar, el sistema requiere re-sincronización de GVL y confirmación manual de estado. Se pierden 5 ciclos completos.',
+    avail: 81.30, perf: 98.43, qual: 100.00,
+    timeLost: 658, cause: 'Watchdog SAFE 180s + resync + 5 ciclos', impact: 'Medio-Alto', impactColor: 'var(--violet)',
+    color: '#a78bfa',
+    cycleMod: (x, i) => (i >= 60 && i < 65) ? null : x,
+  },
+  {
+    name: 'Fallo sensor succión',
+    icon: '🔴',
+    title: 'Fallo Sensor de Succión - Omega/Paletizador',
+    desc: 'El sensor de vacío del brazo Omega (ensamblaje hélices) y Paletizador reporta lecturas erráticas. El sistema continúa operando pero coloca incorrectamente 8 hélices en ciclos aleatorios. La calidad cae al 92% (8 drones con hélice mal posicionada = rechazos). La disponibilidad no se ve afectada pero el rendimiento cae levemente por reintentos.',
+    avail: 88.18, perf: 95.20, qual: 92.00,
+    timeLost: 340, cause: 'Reintentos de agarre + 8 rechazos', impact: 'Medio', impactColor: '#f97316',
+    color: '#a3e635',
+    cycleMod: (x, i) => [12,23,34,41,55,67,72,89].includes(i) ? x * 1.15 : x,
+  },
+  {
+    name: 'Escenario catastrófico',
+    icon: '💥',
+    title: 'Escenario Catastrófico - Fallo Múltiple Simultáneo',
+    desc: 'Combinación de fallo eléctrico en Alpha (parada 12 min), degradación neumática severa en Paletizador (presión 2.1 bar) y pérdida parcial TCP con reconexión inestable. El OEE resultante de 41.3% simula una jornada de producción real con mantenimiento correctivo no planificado, propia de líneas industriales en fase de commissioning.',
+    avail: 58.00, perf: 79.50, qual: 89.50,
+    timeLost: 2140, cause: 'Parada 720s + ciclos lentos + 11 rechazos', impact: 'Crítico', impactColor: 'var(--rose)',
+    color: '#f97316',
+    cycleMod: (x, i) => {
+      if (i >= 20 && i < 40) return null;
+      if (i >= 40) return x * 1.35;
+      return x;
+    },
+  }
+];
+
+function calcOEE(s){ return +(s.avail/100 * s.perf/100 * s.qual/100 * 100).toFixed(2); }
+function dronesLost(s){
+  const oee0 = calcOEE(scenarios[0]);
+  const oeeS = calcOEE(s);
+  return Math.max(0, Math.round(100 * (oee0 - oeeS) / oee0));
+}
+
+// Build comparison chart
+const scColors = scenarios.map(s => s.color);
+const scOEEs   = scenarios.map(s => calcOEE(s));
+const chCompare = new Chart(document.getElementById('ch_sc_compare').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: scenarios.map(s => s.name),
+    datasets: [{
+      data: scOEEs,
+      backgroundColor: scColors.map(c => c + '77'),
+      borderColor: scColors,
+      borderWidth: 1.5,
+      borderRadius: 3
+    }]
+  },
+  options: {
+    ...base,
+    plugins: {
+      legend: { display: false },
+      datalabels: {
+        display: true, color: '#fff',
+        font: { family: "'Fira Code',monospace", size: 11, weight: '600' },
+        formatter: v => v.toFixed(1) + '%',
+        anchor: 'end', align: 'end', offset: 2
+      }
+    },
+    scales: {
+      x: { ticks: { color: tickC, font: { size: 9 }, maxRotation: 30 }, grid: { color: gridC } },
+      y: { min: 35, max: 100, ticks: { color: tickC, callback: v => v + '%' }, grid: { color: gridC } }
+    }
+  }
+});
+
+// Cycle chart (updated per scenario)
+let chCycle = null;
+function buildCycleChart(sc) {
+  const ctx = document.getElementById('ch_sc_cycle').getContext('2d');
+  if (chCycle) chCycle.destroy();
+
+  const base100 = [32.87,32.45,31.96,31.99,31.68,31.79,32.14,31.85,32.18,32.20,
+    32.03,32.03,32.17,32.09,32.37,31.68,31.58,31.47,32.39,31.55,
+    32.26,31.61,31.29,31.44,32.19,32.22,32.20,32.35,31.74,31.63,
+    31.40,31.40,32.22,32.21,31.63,31.89,32.29,31.73,31.55,32.14,
+    31.80,31.73,32.33,31.80,31.79,32.32,32.34,32.27,32.27,31.77,
+    31.56,32.41,31.83,32.44,32.26,31.71,31.53,32.30,31.63,32.31,
+    31.91,32.32,32.23,31.77,31.40,31.46,31.47,31.44,31.47,32.24,
+    32.12,32.38,31.95,32.25,32.27,32.42,31.79,32.25,31.64,31.82,
+    32.20,31.76,32.16,31.75,32.11,32.46,31.58,31.44,31.51,31.49,
+    32.16,31.79,32.18,32.23,32.25,31.56,31.50,31.47,31.56,32.01];
+
+  const pts = base100.map((v, i) => {
+    const m = sc.cycleMod(v, i);
+    return m === null ? null : +m.toFixed(2);
+  });
+
+  const nullRanges = pts.map((v, i) => v === null ? { x: i+1, y: 50 } : null).filter(Boolean);
+
+  chCycle = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: Array.from({length:100},(_,i)=>i+1),
+      datasets: [
+        {
+          label: 'Ciclo simulado', data: pts,
+          borderColor: sc.color, backgroundColor: sc.color + '18',
+          borderWidth: 1.5, pointRadius: pts.map(v => v === null ? 0 : 2),
+          pointBackgroundColor: pts.map((v,i) => {
+            if(v === null) return 'transparent';
+            if(v > 34) return '#fb7185';
+            if(v > 33) return '#f97316';
+            return sc.color;
+          }),
+          tension: 0.2, fill: true, spanGaps: false
+        },
+        {
+          label: 'Baseline', data: base100,
+          borderColor: 'rgba(255,255,255,0.15)', backgroundColor: 'transparent',
+          borderWidth: 1, pointRadius: 0, borderDash: [4,3], tension: 0.2
+        },
+        {
+          label: 'Ciclo ideal (31.44s)', data: Array(100).fill(31.44),
+          borderColor: 'rgba(163,230,53,0.4)', backgroundColor: 'transparent',
+          borderWidth: 1, pointRadius: 0, borderDash: [2,4]
+        }
+      ]
+    },
+    options: {
+      ...base,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: tickC, font: { family:"'Fira Code',monospace", size: 9 }, boxWidth: 10 } },
+        datalabels: { display: false }
+      },
+      scales: {
+        x: { ticks: { color: tickC, maxTicksLimit: 10 }, grid: { color: gridC } },
+        y: { min: 28, max: 50, ticks: { color: tickC, callback: v => v + 's' }, grid: { color: gridC } }
+      }
+    }
+  });
+}
+
+// Build table
+function buildTable() {
+  const tbody = document.getElementById('sc-table-body');
+  tbody.innerHTML = '';
+  const base_oee = calcOEE(scenarios[0]);
+  scenarios.forEach((s, i) => {
+    const oee = calcOEE(s);
+    const delta = (oee - base_oee).toFixed(2);
+    const lost = dronesLost(s);
+    const deltaColor = delta >= 0 ? 'var(--lime)' : 'var(--rose)';
+    tbody.innerHTML += `<tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:8px 10px;color:${s.color};">${s.name}</td>
+      <td style="padding:8px 10px;text-align:right;color:var(--text);">${s.avail.toFixed(2)}%</td>
+      <td style="padding:8px 10px;text-align:right;color:var(--text);">${s.perf.toFixed(2)}%</td>
+      <td style="padding:8px 10px;text-align:right;color:var(--text);">${s.qual.toFixed(2)}%</td>
+      <td style="padding:8px 10px;text-align:right;color:${s.color};font-weight:600;">${oee.toFixed(2)}%</td>
+      <td style="padding:8px 10px;text-align:right;color:${deltaColor};">${delta >= 0 ? '+' : ''}${delta} pp</td>
+      <td style="padding:8px 10px;text-align:right;color:var(--rose);">${lost > 0 ? '−' + lost + ' ud' : '-'}</td>
+    </tr>`;
+  });
+}
+
+let currentScenario = 0;
+function setScenario(i) {
+  currentScenario = i;
+  const sc = scenarios[i];
+  const oee = calcOEE(sc);
+  const lost = dronesLost(sc);
+
+  // Update buttons
+  document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.sc-btn[data-i="${i}"]`).classList.add('active');
+
+  // Update KPIs
+  document.getElementById('sc-avail').textContent = sc.avail.toFixed(2) + '%';
+  document.getElementById('sc-perf').textContent  = sc.perf.toFixed(2) + '%';
+  document.getElementById('sc-qual').textContent  = sc.qual.toFixed(2) + '%';
+  document.getElementById('sc-oee').textContent   = oee + '%';
+  document.getElementById('sc-lost').textContent  = lost;
+
+  const delta = (oee - calcOEE(scenarios[0])).toFixed(2);
+  document.getElementById('sc-avail').style.color = sc.avail < 85 ? 'var(--rose)' : 'var(--cyan)';
+  document.getElementById('sc-perf').style.color  = sc.perf < 90  ? 'var(--rose)' : 'var(--lime)';
+  document.getElementById('sc-qual').style.color  = sc.qual < 98  ? 'var(--rose)' : 'var(--violet)';
+  document.getElementById('sc-avail-sub').textContent = sc.avail < 85 ? '⚠ bajo umbral' : 'aceptable';
+  document.getElementById('sc-perf-sub').textContent  = sc.perf < 90 ? '⚠ degradado' : 'nominal';
+  document.getElementById('sc-qual-sub').textContent  = sc.qual < 98 ? `⚠ ${100 - sc.qual}% rechazos` : 'sin rechazos';
+  document.getElementById('sc-oee-sub').textContent   = `Δ ${delta >= 0 ? '+' : ''}${delta} pp vs baseline`;
+  document.getElementById('sc-lost-sub').textContent  = lost > 0 ? `${lost} drones no producidos` : 'sin pérdida productiva';
+
+  // Update description card
+  document.getElementById('sc-icon').textContent = sc.icon;
+  document.getElementById('sc-title').textContent = sc.title;
+  document.getElementById('sc-desc').textContent  = sc.desc;
+  document.getElementById('sc-metrics').innerHTML = `
+    <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Tiempo perdido</span><br>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:20px;color:var(--rose);">${sc.timeLost}s</span></div>
+    <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Causa principal</span><br>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--text2);">${sc.cause}</span></div>
+    <div><span style="font-family:'Fira Code',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;">Impacto</span><br>
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:20px;color:${sc.impactColor};">${sc.impact}</span></div>
+  `;
+  document.getElementById('sc-desc-card').style.borderColor = sc.color + '44';
+
+  // Highlight active bar in compare chart
+  chCompare.data.datasets[0].backgroundColor = scenarios.map((s,j) => j === i ? s.color + 'cc' : s.color + '44');
+  chCompare.data.datasets[0].borderWidth = scenarios.map((_,j) => j === i ? 2.5 : 1);
+  chCompare.update();
+
+  // Rebuild cycle chart
+  buildCycleChart(sc);
+}
+
+buildTable();
+setScenario(0);
+
+</script>
+
+<!-- ══ ANIMATION ENGINE ══ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ── 1. Intersection Observer para sections, grids, tablas, insights, formulas ── */
+  document.querySelectorAll('section').forEach(el => el.classList.add('reveal'));
+  document.querySelectorAll('.stat-grid').forEach(el => el.classList.add('stagger'));
+  document.querySelectorAll('.two, .three, .four').forEach(el => el.classList.add('stagger'));
+
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      entry.target.classList.add('visible');
+      io.unobserve(entry.target);
+    });
+  }, { threshold: 0.07, rootMargin: '0px 0px -30px 0px' });
+
+  ['section','.stat-grid','.two','.three','.four','.data-table','.insight','.formula']
+    .forEach(sel => document.querySelectorAll(sel).forEach(el => io.observe(el)));
+
+  // Cards individuales con stagger
+  document.querySelectorAll('.card').forEach((card, i) => {
+    card.classList.add('reveal');
+    card.style.transitionDelay = (i % 4) * 0.07 + 's';
+    io.observe(card);
+  });
+
+  /* ── 2. Counter animation para .sb-val ── */
+  function easeOut(t){ return 1 - Math.pow(1 - t, 3); }
+
+  function animateCounter(el, to, duration, decimals) {
+    let start = null;
+    const step = (ts) => {
+      if (!start) start = ts;
+      const elapsed = Math.min(ts - start, duration);
+      const val = to * easeOut(elapsed / duration);
+      el.textContent = (to < 0 ? '-' : '') + Math.abs(val).toFixed(decimals);
+      if (elapsed < duration) requestAnimationFrame(step);
+      else el.textContent = (to < 0 ? '-' : '') + Math.abs(to).toFixed(decimals);
+    };
+    requestAnimationFrame(step);
+  }
+
+  const counterIO = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting || entry.target.dataset.counted) return;
+      entry.target.dataset.counted = '1';
+      const el = entry.target;
+      const unit = el.querySelector('.sb-unit');
+      const unitHTML = unit ? unit.outerHTML : '';
+      const raw = el.textContent.replace(unit?.textContent || '', '').replace(/[−–]/g,'-').trim();
+      const m = raw.match(/^([+-]?\d+\.?\d*)/);
+      if (!m) return;
+      const to = parseFloat(m[1]);
+      const decimals = (m[1].split('.')[1] || '').length;
+      const span = document.createElement('span');
+      span.className = 'count-anim';
+      el.innerHTML = '';
+      el.appendChild(span);
+      if (unitHTML) el.insertAdjacentHTML('beforeend', unitHTML);
+      animateCounter(span, to, Math.min(1600, 700 + Math.abs(to) * 1.5), decimals);
+      counterIO.unobserve(el);
+    });
+  }, { threshold: 0.6 });
+
+  document.querySelectorAll('.sb-val').forEach(el => counterIO.observe(el));
+
+  /* ── 3. Barras de progreso animadas bajo KPIs OEE ── */
+  const oeeMap = {
+    'Disponibilidad': { val: 88.18, color: '#38bdf8' },
+    'Rendimiento':    { val: 98.43, color: '#a3e635' },
+    'Calidad':        { val: 100.0, color: '#a78bfa' },
+    'OEE Final':      { val: 86.80, color: '#f5c842' },
+  };
+  document.querySelectorAll('.sb-label').forEach(lbl => {
+    const key = Object.keys(oeeMap).find(k => lbl.textContent.includes(k));
+    if (!key) return;
+    const block = lbl.closest('.stat-block');
+    if (!block || block.querySelector('.oee-bar')) return;
+    const bar = document.createElement('div');
+    bar.className = 'oee-bar';
+    bar.style.cssText = `background:${oeeMap[key].color};margin-top:10px;animation-delay:.4s;`;
+    bar.style.setProperty('--w', oeeMap[key].val + '%');
+    block.appendChild(bar);
+  });
+
+  /* ── 4. Typewriter en .h-tag ── */
+  const htag = document.querySelector('.h-tag');
+  if (htag) {
+    const original = htag.textContent.trim();
+    htag.textContent = '';
+    let i = 0;
+    const type = () => {
+      if (i <= original.length) {
+        htag.textContent = original.slice(0, i++);
+        setTimeout(type, 36 + Math.random() * 20);
+      }
+    };
+    setTimeout(type, 400);
+  }
+
+  /* ── 5. Partículas flotantes en header ── */
+  const header = document.querySelector('header');
+  if (header) {
+    const kf = document.createElement('style');
+    kf.textContent = `
+      @keyframes fDot{
+        0%{transform:translate(0,0) scale(1);opacity:.18;}
+        50%{opacity:.5;}
+        100%{transform:translate(var(--dx),var(--dy)) scale(1.5);opacity:.18;}
+      }
+    `;
+    document.head.appendChild(kf);
+
+    for (let p = 0; p < 10; p++) {
+      const dot = document.createElement('div');
+      const size = 1.5 + Math.random() * 2.5;
+      const dx = (Math.random() > .5 ? 1 : -1) * (5 + Math.random() * 12);
+      const dy = (Math.random() > .5 ? 1 : -1) * (5 + Math.random() * 10);
+      dot.style.cssText = `
+        position:absolute;width:${size}px;height:${size}px;border-radius:50%;
+        background:rgba(245,200,66,${.1 + Math.random()*.25});
+        left:${Math.random()*100}%;top:${Math.random()*100}%;
+        pointer-events:none;z-index:0;
+        --dx:${dx}px;--dy:${dy}px;
+        animation:fDot ${5+Math.random()*6}s ease-in-out ${Math.random()*3}s infinite alternate;
+      `;
+      header.appendChild(dot);
+    }
+  }
+
+  /* ── 6. Highlight activo en filas de tablas ── */
+  document.querySelectorAll('.data-table tbody tr').forEach(row => {
+    row.addEventListener('mouseenter', () => row.style.background = 'rgba(245,200,66,0.045)');
+    row.addEventListener('mouseleave', () => row.style.background = '');
+  });
+
+  /* ── 7. Keyframe LIVE dot pulse ── */
+  const livePulseStyle = document.createElement('style');
+  livePulseStyle.textContent = `
+    @keyframes livePulse {
+      0%,100%{opacity:1;transform:scale(1);}
+      50%{opacity:.3;transform:scale(1.6);}
+    }
+  `;
+  document.head.appendChild(livePulseStyle);
+
+  /* ── 8. Osciloscopio mini bajo el gauge ── */
+  (function buildSignal() {
+    const canvas = document.getElementById('ch_oee_signal');
+    if (!canvas) return;
+    const ctx2 = canvas.getContext('2d');
+    const W = 240, H = 36;
+    canvas.width = W; canvas.height = H;
+
+    const POINTS = 80;
+    const history = new Array(POINTS).fill(86.80);
+    let signalNoise = 0;
+    let signalPos   = 86.80;
+    let signalVel   = 0;
+
+    function tickSignal() {
+      // misma física que el gauge
+      signalNoise += (Math.random() - 0.5) * 0.35;
+      signalNoise *= 0.93;
+      const force = (86.80 + signalNoise - signalPos) * 0.022;
+      signalVel   = (signalVel + force) * 0.70;
+      signalPos  += signalVel;
+
+      history.push(Math.max(82, Math.min(92, signalPos)));
+      if (history.length > POINTS) history.shift();
+
+      // Draw
+      ctx2.clearRect(0, 0, W, H);
+
+      // Grid lines
+      ctx2.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx2.lineWidth = 1;
+      for (let g = 0; g < 4; g++) {
+        const y = (g + 1) * H / 5;
+        ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(W, y); ctx2.stroke();
+      }
+
+      // Target line (86.80%)
+      const targetY = H - ((86.80 - 82) / 10) * H;
+      ctx2.strokeStyle = 'rgba(245,200,66,0.25)';
+      ctx2.setLineDash([3, 4]);
+      ctx2.beginPath(); ctx2.moveTo(0, targetY); ctx2.lineTo(W, targetY); ctx2.stroke();
+      ctx2.setLineDash([]);
+
+      // Signal fill
+      const grad = ctx2.createLinearGradient(0, 0, 0, H);
+      grad.addColorStop(0,   'rgba(163,230,53,0.35)');
+      grad.addColorStop(1,   'rgba(163,230,53,0)');
+      ctx2.fillStyle = grad;
+      ctx2.beginPath();
+      history.forEach((v, i) => {
+        const x = (i / (POINTS - 1)) * W;
+        const y = H - ((v - 82) / 10) * H;
+        i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+      });
+      ctx2.lineTo(W, H); ctx2.lineTo(0, H); ctx2.closePath();
+      ctx2.fill();
+
+      // Signal line
+      ctx2.strokeStyle = '#a3e635';
+      ctx2.lineWidth = 1.5;
+      ctx2.shadowColor = '#a3e635';
+      ctx2.shadowBlur = 4;
+      ctx2.beginPath();
+      history.forEach((v, i) => {
+        const x = (i / (POINTS - 1)) * W;
+        const y = H - ((v - 82) / 10) * H;
+        i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+      });
+      ctx2.stroke();
+      ctx2.shadowBlur = 0;
+
+      // Live dot at tip
+      const lastX = W;
+      const lastY = H - ((history[history.length-1] - 82) / 10) * H;
+      ctx2.fillStyle = '#a3e635';
+      ctx2.shadowColor = '#a3e635';
+      ctx2.shadowBlur = 8;
+      ctx2.beginPath();
+      ctx2.arc(lastX - 1, lastY, 2.5, 0, Math.PI * 2);
+      ctx2.fill();
+      ctx2.shadowBlur = 0;
+
+      requestAnimationFrame(tickSignal);
+    }
+    requestAnimationFrame(tickSignal);
+  })();
+
+})();
+</script>
+</body>
+</html>
