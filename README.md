@@ -1556,7 +1556,7 @@ All other components of the system were designed entirely by the authors
 
 | Component | Description | Author | Source |
 |-----------|-------------|--------|--------|
-| Brushless DC Motor | Brushless motor used in the assembled drone. Integrated as a visualization asset in the robotic cell. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
+| DC Motor | Motor used in the assembled drone. Integrated as a visualization asset in the robotic cell. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
 | 775 DC Motor | DC motor for the Palletizer displacement system (mecanum wheels). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
 | Mecanum Wheels | Omnidirectional wheel set for the mobile Palletizer. Allow movement in any direction without chassis rotation. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
 | USB Type-C Cable | Type-C charging cable used as a visual element in the drone assembly. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
@@ -3134,7 +3134,7 @@ Todos los demás componentes del sistema fueron diseñados íntegramente por los
 
 | Componente | Descripción | Autor | Fuente |
 |------------|-------------|-------|--------|
-| Motor Brushless DC | Motor sin escobillas utilizado en el dron ensamblado. Integrado como asset de visualización en la celda robótica. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
+| Motor DC | Motor utilizado en el dron ensamblado. Integrado como asset de visualización en la celda robótica. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
 | Motor 775 DC | Motor de corriente continua del sistema de desplazamiento del Paletizador (ruedas mecanum). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
 | Ruedas Mecanum | Conjunto de ruedas omnidireccionales del Paletizador móvil. Permiten desplazamiento en cualquier dirección sin rotación del chasis. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
 | Cable USB Type-C | Cable de carga tipo C utilizado como elemento visual en el ensamblaje del dron. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
