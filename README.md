@@ -58,6 +58,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Installation](#installation)
 - [Resolved Issues](#resolved-issues)
 - [Authors](#authors)
+- [3D Model Credits](#3d-model-credits)
 - [License](#license-and-rights)
 
 > **14 C# scripts · 1 Python script · 4 JSON pose files (duplicated in StreamingAssets/)**
@@ -1547,6 +1548,22 @@ body.xDrive = drive;
 
 ---
 
+## 3D Model Credits
+
+The following 3D models were obtained from public repositories under free-use licenses.
+All other components of the system were designed entirely by the authors
+(Fajardo A. / Sierra V.) in Autodesk Fusion 360 and Inventor under educational license.
+
+| Component | Description | Author | Source |
+|-----------|-------------|--------|--------|
+| Brushless DC Motor | Brushless motor used in the assembled drone. Integrated as a visualization asset in the robotic cell. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
+| 775 DC Motor | DC motor for the Palletizer displacement system (mecanum wheels). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
+| Mecanum Wheels | Omnidirectional wheel set for the mobile Palletizer. Allow movement in any direction without chassis rotation. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
+| USB Type-C Cable | Type-C charging cable used as a visual element in the drone assembly. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
+| USB Cable and 3 Plugs | USB cable with multiple connectors (Type-C, Lightning, Micro USB) used as a scene asset. | anwin | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/computer/usb-cable-and-3-plugs) |
+
+---
+
 ## License and Rights
 
 **Copyright © 2025 Jorge Andres Fajardo Mora and Laura Vanesa Castro Sierra. All rights reserved.**
@@ -1621,6 +1638,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Instalación](#instalación)
 - [Problemas Resueltos](#problemas-resueltos)
 - [Autores](#autores)
+- [Créditos de Modelos 3D](#créditos-de-modelos-3d-externos)
 - [Licencia](#licencia-y-derechos)
 
 > **14 scripts C# · 1 script Python · 4 archivos JSON de poses (duplicados en StreamingAssets/)**
@@ -3105,6 +3123,22 @@ body.xDrive = drive;
 
 **Jorge Andres Fajardo Mora**  
 **Laura Vanesa Castro Sierra**
+
+---
+
+## Créditos de Modelos 3D Externos
+
+Los siguientes modelos 3D fueron obtenidos de repositorios públicos bajo licencia de uso libre.
+Todos los demás componentes del sistema fueron diseñados íntegramente por los autores
+(Fajardo A. / Sierra V.) en Autodesk Fusion 360 e Inventor bajo licencia educativa.
+
+| Componente | Descripción | Autor | Fuente |
+|------------|-------------|-------|--------|
+| Motor Brushless DC | Motor sin escobillas utilizado en el dron ensamblado. Integrado como asset de visualización en la celda robótica. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
+| Motor 775 DC | Motor de corriente continua del sistema de desplazamiento del Paletizador (ruedas mecanum). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
+| Ruedas Mecanum | Conjunto de ruedas omnidireccionales del Paletizador móvil. Permiten desplazamiento en cualquier dirección sin rotación del chasis. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
+| Cable USB Type-C | Cable de carga tipo C utilizado como elemento visual en el ensamblaje del dron. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
+| USB Cable and 3 Plugs | Cable USB con conectores múltiples (Type-C, Lightning, Micro USB) utilizado como asset de escena. | anwin | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/computer/usb-cable-and-3-plugs) |
 
 ---
 
