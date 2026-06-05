@@ -19,7 +19,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 <br/>
 
-[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/MrMugpJ7UEQ)
+[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
 
 > *Full simulation run — assembly, palletizing, and cart swap with CODESYS & FluidSIM integration.*
 
@@ -58,7 +58,6 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 - [Installation](#installation)
 - [Resolved Issues](#resolved-issues)
 - [Authors](#authors)
-- [3D Model Credits](#3d-model-credits)
 - [License](#license-and-rights)
 
 > **14 C# scripts · 1 Python script · 4 JSON pose files (duplicated in StreamingAssets/)**
@@ -233,6 +232,7 @@ graph LR
 | 3 | `16#08` | `LED3` | LED 3 |
 | 4 | `16#10` | `NEUMATICA_OFF` | Pneumatics off → FluidSIM via OPC |
 | 5 | `16#20` | `NEUMATICA_ON` | Pneumatics on → FluidSIM via OPC |
+| 6 | `16#40` | `STOP_EMERG` | Set when `STOP=0` OR `EMERGENCIA=0` — signals system halt to Unity independently of NEUMATICA_OFF |
 
 #### FluidSIM I/O Module Mapping
 
@@ -282,6 +282,7 @@ stateDiagram-v2
 - **Safety logic** — monitors `STOP` and `EMERGENCIA` inputs; any LOW signal immediately sets `SISTEMA_ON := FALSE` and cuts pneumatics. System only restarts on a `START` rising edge with both signals HIGH.
 - **Actuator control** — decodes `TCP_COMANDOS_VENTOSAS` bits to drive solenoid valves for the two suction cups (Omega and Paletizador), and `TCP_COMANDOS_LEDS` bits to drive 8 indicator LEDs via OPC DA.
 - **OPC DA bridge** — publishes `salidas_plc1/2` and reads `entradas_plc1` through the FluidSIM OPC server, synchronizing the virtual pneumatic circuit with Unity in real time.
+- **Immediate shutdown packet** — when `SISTEMA_ON` falls from TRUE to FALSE, an out-of-band 5-byte status packet is sent instantly (before the next 50 ms heartbeat) so Unity reacts to the stop without waiting for the next scheduled cycle.
 
 **Key design advantages:**
 
@@ -289,8 +290,9 @@ stateDiagram-v2
 |-----------|---------|
 | `SysSockSelect` with zero timeout | Non-blocking socket I/O — PLC scan cycle never stalls |
 | 50 ms `tSendTimer` heartbeat | Deterministic update rate; Unity thread times out cleanly |
-| `tNoDataTimer` 3 s watchdog | Auto-disconnects if Unity crashes without closing the socket |
-| `nBytesReceived <= 0` disconnect | Handles both graceful close (0) and RST/error (−1) |
+| `tNoDataTimer` 30 s watchdog | Auto-disconnects if Unity crashes without closing the socket |
+| `nBytesReceived <= 0` disconnect (RX) | Handles graceful close (0) and any error (negative) — peer closed or reset |
+| `nBytesSent <= 0 AND <> -1` disconnect (TX) | Disconnects on 0 bytes sent (graceful close); keeps alive on −1 (EAGAIN / non-blocking stall) |
 | Positional `SysSock*` parameters | Required by CODESYS V3.5 SP9 P1 — named params unsupported |
 
 ---
@@ -1548,22 +1550,6 @@ body.xDrive = drive;
 
 ---
 
-## 3D Model Credits
-
-The following 3D models were obtained from public repositories under free-use licenses.
-All other components of the system were designed entirely by the authors
-(Fajardo A. / Sierra V.) in Autodesk Fusion 360 and Inventor under educational license.
-
-| Component | Description | Author | Source |
-|-----------|-------------|--------|--------|
-| DC Motor | Motor used in the assembled drone. Integrated as a visualization asset in the robotic cell. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
-| 775 DC Motor | DC motor for the Palletizer displacement system (mecanum wheels). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
-| Mecanum Wheels | Omnidirectional wheel set for the mobile Palletizer. Allow movement in any direction without chassis rotation. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
-| USB Type-C Cable | Type-C charging cable used as a visual element in the drone assembly. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
-| USB Cable and 3 Plugs | USB cable with multiple connectors (Type-C, Lightning, Micro USB) used as a scene asset. | anwin | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/computer/usb-cable-and-3-plugs) |
-
----
-
 ## License and Rights
 
 **Copyright © 2025 Jorge Andres Fajardo Mora and Laura Vanesa Castro Sierra. All rights reserved.**
@@ -1599,7 +1585,7 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 
 <br/>
 
-[![Video Demo](https://img.shields.io/badge/▶_Video_Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/MrMugpJ7UEQ)
+[![Video Demo](https://img.shields.io/badge/▶_Video_Demo-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
 
 > *Corrida completa de la simulación — ensamblaje, paletizado y swap de carros con integración CODESYS & FluidSIM.*
 
@@ -1638,7 +1624,6 @@ Brazos Articulados Coordinados · Movimiento JSON · Física Realista
 - [Instalación](#instalación)
 - [Problemas Resueltos](#problemas-resueltos)
 - [Autores](#autores)
-- [Créditos de Modelos 3D](#créditos-de-modelos-3d-externos)
 - [Licencia](#licencia-y-derechos)
 
 > **14 scripts C# · 1 script Python · 4 archivos JSON de poses (duplicados en StreamingAssets/)**
@@ -1809,6 +1794,7 @@ graph LR
 | 3 | `16#08` | `LED3` | LED 3 |
 | 4 | `16#10` | `NEUMATICA_OFF` | Neumática apagada → FluidSIM vía OPC |
 | 5 | `16#20` | `NEUMATICA_ON` | Neumática encendida → FluidSIM vía OPC |
+| 6 | `16#40` | `STOP_EMERG` | Activo cuando `STOP=0` O `EMERGENCIA=0` — señaliza paro del sistema a Unity de forma independiente a NEUMATICA_OFF |
 
 #### Mapeo de Módulos I/O FluidSIM
 
@@ -1858,6 +1844,7 @@ stateDiagram-v2
 - **Lógica de seguridad** — monitorea las entradas `STOP` y `EMERGENCIA`; cualquier señal LOW pone `SISTEMA_ON := FALSE` y corta la neumática de inmediato. El sistema solo arranca con un flanco ascendente de `START` y ambas señales en HIGH.
 - **Control de actuadores** — decodifica los bits de `TCP_COMANDOS_VENTOSAS` para accionar las electroválvulas de las dos ventosas (Omega y Paletizador), y los bits de `TCP_COMANDOS_LEDS` para los 8 indicadores LED vía OPC DA.
 - **Puente OPC DA** — publica `salidas_plc1/2` y lee `entradas_plc1` a través del servidor OPC de FluidSIM, sincronizando el circuito neumático virtual con Unity en tiempo real.
+- **Paquete de paro inmediato** — cuando `SISTEMA_ON` baja de TRUE a FALSE, se envía fuera de ciclo un paquete de estado de 5 bytes al instante (antes del siguiente heartbeat de 50 ms) para que Unity reaccione al paro sin esperar el siguiente ciclo programado.
 
 **Ventajas de diseño clave:**
 
@@ -1865,8 +1852,9 @@ stateDiagram-v2
 |---------|---------|
 | `SysSockSelect` con timeout cero | I/O de socket no bloqueante — el ciclo PLC nunca se congela |
 | Heartbeat `tSendTimer` de 50 ms | Tasa de actualización determinista; el hilo Unity retorna limpiamente |
-| Watchdog `tNoDataTimer` de 3 s | Desconexión automática si Unity se cierra sin cerrar el socket |
-| `nBytesReceived <= 0` para desconexión | Maneja cierre gracioso (0) y RST/error (−1) |
+| Watchdog `tNoDataTimer` de 30 s | Desconexión automática si Unity se cierra sin cerrar el socket |
+| `nBytesReceived <= 0` desconexión (RX) | Maneja cierre gracioso (0) y cualquier error negativo — peer cerró o hizo reset |
+| `nBytesSent <= 0 AND <> -1` desconexión (TX) | Desconecta en 0 bytes enviados (cierre gracioso); mantiene viva en −1 (EAGAIN / socket no bloqueante) |
 | Parámetros posicionales en `SysSock*` | Requerido por CODESYS V3.5 SP9 P1 — parámetros nombrados no soportados |
 
 ---
@@ -3123,22 +3111,6 @@ body.xDrive = drive;
 
 **Jorge Andres Fajardo Mora**  
 **Laura Vanesa Castro Sierra**
-
----
-
-## Créditos de Modelos 3D Externos
-
-Los siguientes modelos 3D fueron obtenidos de repositorios públicos bajo licencia de uso libre.
-Todos los demás componentes del sistema fueron diseñados íntegramente por los autores
-(Fajardo A. / Sierra V.) en Autodesk Fusion 360 e Inventor bajo licencia educativa.
-
-| Componente | Descripción | Autor | Fuente |
-|------------|-------------|-------|--------|
-| Motor DC | Motor utilizado en el dron ensamblado. Integrado como asset de visualización en la celda robótica. | imoGK | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/88134/brushless-dc-motor) |
-| Motor 775 DC | Motor de corriente continua del sistema de desplazamiento del Paletizador (ruedas mecanum). | wbd1886 | [Autodesk Community Gallery](https://www.autodesk.com/community/gallery/project/154764/775-dc-motor) |
-| Ruedas Mecanum | Conjunto de ruedas omnidireccionales del Paletizador móvil. Permiten desplazamiento en cualquier dirección sin rotación del chasis. | WATTOS | [GrabCAD](https://grabcad.com/library/wattos-mecanum-wheel-new-generation-1) |
-| Cable USB Type-C | Cable de carga tipo C utilizado como elemento visual en el ensamblaje del dron. | oranok | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/phone/usb-cable-type-c-cable) |
-| USB Cable and 3 Plugs | Cable USB con conectores múltiples (Type-C, Lightning, Micro USB) utilizado como asset de escena. | anwin | [CGTrader](https://www.cgtrader.com/free-3d-models/electronics/computer/usb-cable-and-3-plugs) |
 
 ---
 

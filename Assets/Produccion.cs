@@ -56,7 +56,6 @@ public class Produccion : MonoBehaviour
     [Header("Logger de producción")]
     public LogProduccion logger;
 
-    // Propiedades para HMI
     public bool OmegaActivo => brazoOmega != null && brazoOmega.TieneObjeto;
     public bool PaletActivo => brazoPaletizador != null && brazoPaletizador.TieneObjeto;
     public string OmegaAccion => brazoOmega != null && brazoOmega.TieneObjeto ? "HOLDING" :
@@ -112,14 +111,20 @@ public class Produccion : MonoBehaviour
 
     void Update()
     {
-        Time.timeScale = SistemaPausado ? 0f : 1f;
+        bool pausado = tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+        Time.timeScale = pausado ? 0f : 1f;
         if (!simulacionActiva) return;
         tiempoTotalSimulacion += Time.deltaTime;
     }
 
     IEnumerator Esperar(Func<bool> condicion)
     {
-        yield return new WaitUntil(() => !SistemaPausado && condicion());
+        while (true)
+        {
+            bool pausado = tcp != null && tcp.isConnected && (tcp.salidas_plc2 & 0x10) != 0;
+            if (!pausado && condicion()) yield break;
+            yield return new WaitForSecondsRealtime(0.05f);
+        }
     }
 
     IEnumerator LoopProduccion()
@@ -166,7 +171,6 @@ public class Produccion : MonoBehaviour
             cajasEnCarroActual++;
             Debug.Log($"[Produccion] ✅ Dron {droneActual}/{dronesAProducir} paletizado");
 
-            // Registro al logger CSV
             if (logger != null)
                 logger.RegistrarCaja(droneActual);
 
@@ -210,7 +214,6 @@ public class Produccion : MonoBehaviour
                 cajasEnCarroActual++;
                 Debug.Log($"[Produccion] ✅ Dron {droneActual}/{dronesAProducir} paletizado");
 
-                // Registro al logger CSV
                 if (logger != null)
                     logger.RegistrarCaja(droneActual);
 
@@ -229,7 +232,6 @@ public class Produccion : MonoBehaviour
         OnLogTiempo?.Invoke(msgFinal);
         Debug.Log($"[Produccion] 🏁 Tiempo total: {msgFinal}");
 
-        // Guardar CSV de la corrida (si está activado en el Inspector del logger)
         if (logger != null)
             logger.GuardarCSV();
     }
@@ -244,7 +246,6 @@ public class Produccion : MonoBehaviour
         OnLogTiempo?.Invoke(msg);
         Debug.Log($"[Produccion] ⏱ {msg} ({tiempoCiclo:F2}s)");
 
-        // Registro al logger CSV
         if (logger != null)
             logger.RegistrarDron(numeroDron, tiempoCiclo);
     }
