@@ -257,11 +257,15 @@ stateDiagram-v2
 
     state SISTEMA_ON {
         [*] --> LED_TEST
-        LED_TEST --> NEUMATICA_ON : 1 s TON elapsed
+        LED_TEST --> LED_OFF : 1 s TON elapsed
+        --
+        [*] --> NEUMATICA_ON
         NEUMATICA_ON --> VENTOSAS_ON : TCP_COMANDOS_VENTOSAS bit set
         VENTOSAS_ON --> NEUMATICA_ON : bit cleared
     }
 ```
+
+> **Note:** The two regions inside `SISTEMA_ON` run in parallel (`--`): `LED_TEST` fires a 1 s timer concurrently with `NEUMATICA_ON`, which activates immediately when `SISTEMA_ON` becomes TRUE.
 
 | Condition | Effect |
 |-----------|--------|
@@ -360,7 +364,7 @@ graph LR
 graph TB
     subgraph DATA["Data & Spawning"]
         direction LR
-        JF[(StreamingAssets · 8 pose files)]
+        JF[(StreamingAssets · 4 pose files)]
         SP["Spawners · parts + boxes"]
         P["Produccion.cs"] -->|staggered spawn| SP
     end
@@ -1819,11 +1823,15 @@ stateDiagram-v2
 
     state SISTEMA_ON {
         [*] --> LED_TEST
-        LED_TEST --> NEUMATICA_ON : TON 1s expirado
+        LED_TEST --> LED_OFF : TON 1s expirado
+        --
+        [*] --> NEUMATICA_ON
         NEUMATICA_ON --> VENTOSAS_ON : bit TCP_COMANDOS_VENTOSAS activo
         VENTOSAS_ON --> NEUMATICA_ON : bit limpiado
     }
 ```
+
+> **Nota:** Las dos regiones dentro de `SISTEMA_ON` corren en paralelo (`--`): `LED_TEST` dispara su timer de 1 s simultáneamente con `NEUMATICA_ON`, que se activa de inmediato cuando `SISTEMA_ON` pasa a TRUE.
 
 | Condición | Efecto |
 |-----------|--------|
@@ -1922,7 +1930,7 @@ graph LR
 graph TB
     subgraph DATA["Datos y Spawn"]
         direction LR
-        JF[(StreamingAssets · 8 archivos de poses)]
+        JF[(StreamingAssets · 4 archivos de poses)]
         SP["Spawners · piezas + cajas"]
         P["Produccion.cs"] -->|spawn escalonado| SP
     end
