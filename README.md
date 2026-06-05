@@ -319,32 +319,29 @@ FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simulates the full pneumatic ci
 | Cart 2 LED panel | Indicator | 4 LEDs driven by `LED5–LED8` (salidas_plc1) |
 
 ```mermaid
-graph LR
+graph TD
     subgraph CMD["CODESYS Outputs"]
-        direction TB
-        PLC1["salidas_plc1\nbits 0–3 · ventosa solenoids\nbits 4–7 · LED5-8"]
-        PLC2["salidas_plc2\nbits 0–3 · LED1-4\nbits 4–5 · NEUMATICA"]
+        direction LR
+        PLC1["salidas_plc1\nbits 0-3: ventosa solenoids · bits 4-7: LED5-8"]
+        PLC2["salidas_plc2\nbits 0-3: LED1-4 · bits 4-5: NEUMATICA"]
     end
 
-    subgraph ACT["FluidSIM In — Actuators"]
-        direction TB
+    subgraph ACT["FluidSIM In — Solenoid Valves"]
+        direction LR
         V1["1M1/1M2 · 5/2 valve\nOmega suction cup"]
         V2["2M1/2M2 · 5/2 valve\nPaletizador suction cup"]
         V3["3M1/3M2 · 5/2 valve\nMain pneumatic supply"]
-        LC["LED panels\nLED1–4 · LED5–8"]
     end
 
     subgraph SENS["FluidSIM Out — Sensor Feedback → entradas_plc1"]
-        direction TB
-        S1["1BP1 · grip confirm Omega\n→ BP1 bit 0"]
-        S2["1BP2 · grip confirm Paletizador\n→ BP2 bit 1"]
+        direction LR
+        S1["1BP1 · grip confirm Omega → BP1 bit 0"]
+        S2["1BP2 · grip confirm Paletizador → BP2 bit 1"]
     end
 
-    PLC1 -->|"bits 0–1"| V1
-    PLC1 -->|"bits 2–3"| V2
-    PLC1 -->|"bits 4–7"| LC
-    PLC2 -->|"bits 4–5"| V3
-    PLC2 -->|"bits 0–3"| LC
+    PLC1 -->|"bits 0-1"| V1
+    PLC1 -->|"bits 2-3"| V2
+    PLC2 -->|"bits 4-5"| V3
     V1 -->|"pressure sensor"| S1
     V2 -->|"pressure sensor"| S2
 
@@ -353,7 +350,7 @@ graph LR
     style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
 
-> **Note:** Physical buttons START, STOP, and EMERGENCIA (entradas\_plc1 bits 2–4) are wired directly to FluidSIM's input module and are not driven by the pneumatic circuit shown above.
+> **Note:** Physical buttons START, STOP, and EMERGENCIA (entradas\_plc1 bits 2–4) are wired directly to FluidSIM's input module and are not driven by the pneumatic circuit shown above. LED panel connections (salidas\_plc1 bits 4–7 → LED5–8, salidas\_plc2 bits 0–3 → LED1–4) are described in the FluidSIM I/O Module Mapping table above.
 
 ---
 
@@ -400,7 +397,8 @@ graph TB
     JF -. pose .-> PAL
     SP -->|parts| CELL
     B3 -->|"drone transfer"| B4
-    B3 & B4 -->|"TCP/IP · port 8888"| PLC
+    B3 -->|"TCP/IP · port 8888"| PLC
+    B4 -->|"TCP/IP · port 8888"| PLC
 
     style B1   fill:#1D9E75,stroke:#085041,color:#fff
     style B2   fill:#1D9E75,stroke:#085041,color:#fff
@@ -471,7 +469,33 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    direction LR
+    direction TB
+
+    class Produccion {
+        +Spawner spawnBase, spawnPCB
+        +Spawner spawnMotor1..4
+        +Spawner spawnHelice1..4
+        +Spawner spawnTapa
+        +Spawner[] spawnsCaja
+        +Brazos brazoAlpha, brazoBeta
+        +Ventosa brazoOmega, brazoPaletizador
+        +CodesysTcpClient tcp
+        +int dronesAProducir
+        +bool OmegaActivo
+        +bool PaletActivo
+        +string CarroActualTag
+        +float TiempoCicloActual
+        +IEnumerator LoopProduccion()
+        +IEnumerator SecuenciaEnsamblaje()
+        -IEnumerator SwapCarro()
+    }
+
+    class Spawner {
+        +GameObject prefab
+        +Transform puntoEnsamble
+        +Transform baseParent
+        +GameObject Spawn()
+    }
 
     class Brazos {
         +ArticulationBody Waist, Arm01, Arm02, Arm03
@@ -579,12 +603,12 @@ classDiagram
         +AddLog(string)
     }
 
-    class DronListo {
-        +bool dronesListo
-        +int piezasEsperadas
-        +PrepararParaLevantamiento()
-        +SoltarDron()
-        -ContarPiezasEnsambladas()
+    class GripperTrigger {
+        +Brazos mainScript
+    }
+
+    class SuctionTrigger {
+        +Ventosa mainScript
     }
 
     class EnsambleGri {
@@ -614,36 +638,18 @@ classDiagram
         -IniciarEncaje()
     }
 
-    class Produccion {
-        +Spawner spawnBase, spawnPCB
-        +Spawner spawnMotor1..4
-        +Spawner spawnHelice1..4
-        +Spawner spawnTapa
-        +Spawner[] spawnsCaja
-        +Brazos brazoAlpha, brazoBeta
-        +Ventosa brazoOmega, brazoPaletizador
-        +CodesysTcpClient tcp
-        +int dronesAProducir
-        +bool OmegaActivo
-        +bool PaletActivo
-        +string CarroActualTag
-        +float TiempoCicloActual
-        +IEnumerator LoopProduccion()
-        +IEnumerator SecuenciaEnsamblaje()
-        -IEnumerator SwapCarro()
-    }
-
-    class Spawner {
-        +GameObject prefab
-        +Transform puntoEnsamble
-        +Transform baseParent
-        +GameObject Spawn()
-    }
-
     class CentrarBase {
         +Transform puntoDestino
         +Vector3 rotacionFija
         +IniciarCentrado()
+    }
+
+    class DronListo {
+        +bool dronesListo
+        +int piezasEsperadas
+        +PrepararParaLevantamiento()
+        +SoltarDron()
+        -ContarPiezasEnsambladas()
     }
 
     class CerradorTapa {
@@ -665,29 +671,24 @@ classDiagram
         +AdoptarCajas()
     }
 
-    class GripperTrigger {
-        +Brazos mainScript
-    }
-
-    class SuctionTrigger {
-        +Ventosa mainScript
-    }
-
+    Produccion --> Spawner : manages
+    Produccion --> Brazos : alpha · beta
+    Produccion --> Ventosa : omega
+    Produccion --> CarroPaletizador : paletizador
+    Produccion --> CodesysTcpClient : reads SISTEMA_ON gate
+    HmiManager --> CodesysTcpClient : monitors TCP + PLC state
+    HmiManager --> Produccion : reads arm/production state
     CarroPaletizador --> Ventosa : drives paletizador
     CarroPaletizador --> RetiradorCarro : triggers box adoption
     GripperTrigger --> Brazos : OnTriggerEnter / OnTriggerExit
     SuctionTrigger --> Ventosa : OnTriggerEnter / OnTriggerExit
     Brazos --> EnsambleGri : snap on release
+    Brazos --> CentrarBase : centers Base after release
     Ventosa --> Ensamble : snap on release
     Ventosa --> CerradorTapa : triggers lid close after deposit
-    Brazos --> CentrarBase : centers Base after release
-    Produccion --> Spawner : manages
-    Produccion --> CodesysTcpClient : reads SISTEMA_ON gate
     Spawner ..> EnsambleGri : assigns baseParent
     Spawner ..> Ensamble : assigns puntoEnsamble
     DronListo ..> Ventosa : dronesListo flag read by Omega
-    HmiManager --> CodesysTcpClient : monitors TCP + PLC state
-    HmiManager --> Produccion : reads arm/production state
 ```
 
 ---
@@ -1927,32 +1928,29 @@ FluidSIM 4.2p (Festo Didactic, build 19.02.2010) simula el circuito neumático c
 | Panel LED Carro 2 | Indicador | 4 LEDs controlados por `LED5–LED8` (salidas_plc1) |
 
 ```mermaid
-graph LR
+graph TD
     subgraph CMD["Salidas CODESYS"]
-        direction TB
-        PLC1["salidas_plc1\nbits 0–3 · solenoides ventosa\nbits 4–7 · LED5-8"]
-        PLC2["salidas_plc2\nbits 0–3 · LED1-4\nbits 4–5 · NEUMATICA"]
+        direction LR
+        PLC1["salidas_plc1\nbits 0-3: solenoides ventosa · bits 4-7: LED5-8"]
+        PLC2["salidas_plc2\nbits 0-3: LED1-4 · bits 4-5: NEUMATICA"]
     end
 
-    subgraph ACT["FluidSIM In — Actuadores"]
-        direction TB
+    subgraph ACT["FluidSIM In — Válvulas Solenoide"]
+        direction LR
         V1["1M1/1M2 · válvula 5/2\nVentosa Omega"]
         V2["2M1/2M2 · válvula 5/2\nVentosa Paletizador"]
         V3["3M1/3M2 · válvula 5/2\nSuministro neumático"]
-        LC["Paneles LED\nLED1–4 · LED5–8"]
     end
 
     subgraph SENS["FluidSIM Out — Retroalimentación → entradas_plc1"]
-        direction TB
-        S1["1BP1 · confirmación agarre Omega\n→ BP1 bit 0"]
-        S2["1BP2 · confirmación agarre Paletizador\n→ BP2 bit 1"]
+        direction LR
+        S1["1BP1 · confirmación agarre Omega → BP1 bit 0"]
+        S2["1BP2 · confirmación agarre Paletizador → BP2 bit 1"]
     end
 
-    PLC1 -->|"bits 0–1"| V1
-    PLC1 -->|"bits 2–3"| V2
-    PLC1 -->|"bits 4–7"| LC
-    PLC2 -->|"bits 4–5"| V3
-    PLC2 -->|"bits 0–3"| LC
+    PLC1 -->|"bits 0-1"| V1
+    PLC1 -->|"bits 2-3"| V2
+    PLC2 -->|"bits 4-5"| V3
     V1 -->|"sensor de presión"| S1
     V2 -->|"sensor de presión"| S2
 
@@ -1961,7 +1959,7 @@ graph LR
     style SENS fill:#1a3a5c,color:#fff,stroke:#4a6fa5
 ```
 
-> **Nota:** Los pulsadores físicos START, STOP y EMERGENCIA (bits 2–4 de entradas\_plc1) están cableados directamente al módulo de entradas de FluidSIM y no son parte del circuito neumático representado arriba.
+> **Nota:** Los pulsadores físicos START, STOP y EMERGENCIA (bits 2–4 de entradas\_plc1) están cableados directamente al módulo de entradas de FluidSIM y no son parte del circuito neumático representado arriba. Las conexiones de paneles LED (salidas\_plc1 bits 4–7 → LED5–8, salidas\_plc2 bits 0–3 → LED1–4) están descritas en la tabla de Mapeo de Módulos I/O FluidSIM anterior.
 
 ---
 
@@ -2008,7 +2006,8 @@ graph TB
     JF -. poses .-> PAL
     SP -->|piezas| CELL
     B3 -->|"transferencia dron"| B4
-    B3 & B4 -->|"TCP/IP · puerto 8888"| PLC
+    B3 -->|"TCP/IP · puerto 8888"| PLC
+    B4 -->|"TCP/IP · puerto 8888"| PLC
 
     style B1   fill:#1D9E75,stroke:#085041,color:#fff
     style B2   fill:#1D9E75,stroke:#085041,color:#fff
@@ -2079,7 +2078,33 @@ sequenceDiagram
 
 ```mermaid
 classDiagram
-    direction LR
+    direction TB
+
+    class Produccion {
+        +Spawner spawnBase, spawnPCB
+        +Spawner spawnMotor1..4
+        +Spawner spawnHelice1..4
+        +Spawner spawnTapa
+        +Spawner[] spawnsCaja
+        +Brazos brazoAlpha, brazoBeta
+        +Ventosa brazoOmega, brazoPaletizador
+        +CodesysTcpClient tcp
+        +int dronesAProducir
+        +bool OmegaActivo
+        +bool PaletActivo
+        +string CarroActualTag
+        +float TiempoCicloActual
+        +IEnumerator LoopProduccion()
+        +IEnumerator SecuenciaEnsamblaje()
+        -IEnumerator SwapCarro()
+    }
+
+    class Spawner {
+        +GameObject prefab
+        +Transform puntoEnsamble
+        +Transform baseParent
+        +GameObject Spawn()
+    }
 
     class Brazos {
         +ArticulationBody Waist, Arm01, Arm02, Arm03
@@ -2187,12 +2212,12 @@ classDiagram
         +AddLog(string)
     }
 
-    class DronListo {
-        +bool dronesListo
-        +int piezasEsperadas
-        +PrepararParaLevantamiento()
-        +SoltarDron()
-        -ContarPiezasEnsambladas()
+    class GripperTrigger {
+        +Brazos mainScript
+    }
+
+    class SuctionTrigger {
+        +Ventosa mainScript
     }
 
     class EnsambleGri {
@@ -2222,36 +2247,18 @@ classDiagram
         -IniciarEncaje()
     }
 
-    class Produccion {
-        +Spawner spawnBase, spawnPCB
-        +Spawner spawnMotor1..4
-        +Spawner spawnHelice1..4
-        +Spawner spawnTapa
-        +Spawner[] spawnsCaja
-        +Brazos brazoAlpha, brazoBeta
-        +Ventosa brazoOmega, brazoPaletizador
-        +CodesysTcpClient tcp
-        +int dronesAProducir
-        +bool OmegaActivo
-        +bool PaletActivo
-        +string CarroActualTag
-        +float TiempoCicloActual
-        +IEnumerator LoopProduccion()
-        +IEnumerator SecuenciaEnsamblaje()
-        -IEnumerator SwapCarro()
-    }
-
-    class Spawner {
-        +GameObject prefab
-        +Transform puntoEnsamble
-        +Transform baseParent
-        +GameObject Spawn()
-    }
-
     class CentrarBase {
         +Transform puntoDestino
         +Vector3 rotacionFija
         +IniciarCentrado()
+    }
+
+    class DronListo {
+        +bool dronesListo
+        +int piezasEsperadas
+        +PrepararParaLevantamiento()
+        +SoltarDron()
+        -ContarPiezasEnsambladas()
     }
 
     class CerradorTapa {
@@ -2273,29 +2280,24 @@ classDiagram
         +AdoptarCajas()
     }
 
-    class GripperTrigger {
-        +Brazos mainScript
-    }
-
-    class SuctionTrigger {
-        +Ventosa mainScript
-    }
-
+    Produccion --> Spawner : gestiona
+    Produccion --> Brazos : alpha · beta
+    Produccion --> Ventosa : omega
+    Produccion --> CarroPaletizador : paletizador
+    Produccion --> CodesysTcpClient : lee compuerta SISTEMA_ON
+    HmiManager --> CodesysTcpClient : monitorea TCP + estado PLC
+    HmiManager --> Produccion : lee estado brazos/producción
     CarroPaletizador --> Ventosa : conduce paletizador
     CarroPaletizador --> RetiradorCarro : activa adopción de cajas
     GripperTrigger --> Brazos : OnTriggerEnter / OnTriggerExit
     SuctionTrigger --> Ventosa : OnTriggerEnter / OnTriggerExit
     Brazos --> EnsambleGri : snap al soltar
+    Brazos --> CentrarBase : centra Base al soltar
     Ventosa --> Ensamble : snap al soltar
     Ventosa --> CerradorTapa : activa cierre de tapa al depositar
-    Brazos --> CentrarBase : centra Base al soltar
-    Produccion --> Spawner : gestiona
-    Produccion --> CodesysTcpClient : lee compuerta SISTEMA_ON
     Spawner ..> EnsambleGri : asigna baseParent
     Spawner ..> Ensamble : asigna puntoEnsamble
     DronListo ..> Ventosa : flag dronesListo leído por Omega
-    HmiManager --> CodesysTcpClient : monitorea TCP + estado PLC
-    HmiManager --> Produccion : lee estado brazos/producción
 ```
 
 ---
