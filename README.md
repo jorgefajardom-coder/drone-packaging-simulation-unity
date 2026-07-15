@@ -19,7 +19,7 @@ Coordinated Articulated Arms · JSON-Driven Motion · Realistic Physics
 
 <br/>
 
-[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/U491eei--Xc?si=DweGneszA-7RkUbz)
+[![Demo Video](https://img.shields.io/badge/▶_Demo_Video-YouTube-red?style=for-the-badge&logo=youtube)](https://youtu.be/MrMugpJ7UEQ?feature=shared)
 
 > *Full simulation run — assembly, palletizing, and cart swap with CODESYS & FluidSIM integration.*
 
